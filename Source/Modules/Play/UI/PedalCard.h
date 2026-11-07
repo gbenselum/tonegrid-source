@@ -292,7 +292,29 @@ public:
     }
     void paint(juce::Graphics& g)override
     {
-        using namespace juce;if(assetPilot()){activeSkin().paint(g,getLocalBounds(),processor.get(pedal).enabled,modern?ledIntensity:1.f);return;}g.drawImage(skin,face,RectanglePlacement::stretchToFit);
+        using namespace juce;
+        if(assetPilot())
+        {
+            activeSkin().paint(g,getLocalBounds(),processor.get(pedal).enabled,modern?ledIntensity:1.f);
+            if(pedal==board::id(board::PedalId::GraphicEq)&&tonegrid::isBass(processor.instrumentMode())&&!eqFaders[0].getBounds().isEmpty())
+            {
+                const int stripY=eqFaders[0].getBottom()+1;
+                const int stripX=eqFaders[0].getX()-4;
+                const int stripW=eqFaders[6].getRight()+4-stripX;
+                g.setColour(Colour(0xffe8e0d3));
+                g.fillRoundedRectangle(float(stripX),float(stripY),float(stripW),15.f,2.f);
+                static constexpr std::array<const char*,7> bassLabels{{"40","80","160","320","640","1.3K","2.6K"}};
+                g.setColour(Colour(0xff1e1b18));
+                g.setFont(tonegrid::ui::font(9.5f,true));
+                for(size_t b=0;b<7;++b)
+                {
+                    const auto fb=eqFaders[b].getBounds();
+                    g.drawText(bassLabels[b],fb.getX()-6,stripY,fb.getWidth()+12,15,Justification::centred,false);
+                }
+            }
+            return;
+        }
+        g.drawImage(skin,face,RectanglePlacement::stretchToFit);
         auto led=box(105,19,14,14).toFloat();const bool on=pedal>=0&&processor.get(pedal).enabled;
         g.setColour(Colours::black);g.fillEllipse(led.expanded(1));if(on){g.setColour(Colour(0xffff3b32).withAlpha(.25f));g.fillEllipse(led.expanded(4));}g.setColour(on?Colour(0xffff382e):Colour(0xff56272a));g.fillEllipse(led);if(on){g.setColour(Colours::white);g.fillEllipse(led.reduced(3));}
         // Reuse the photographed metallic sockets from the previously approved enclosure.

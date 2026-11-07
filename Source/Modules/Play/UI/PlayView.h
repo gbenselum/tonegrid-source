@@ -52,24 +52,25 @@ public:
         {
             // Bass mode layout:
             // Row 1 (upper): Wide TRI-COMP and TRI-DRIVE rack units side-by-side
-            // Row 2 (lower): The 5 kept bass stompboxes (AutoWah, ClassicFuzz, VintageFuzz, GraphicEq, CleanBoost)
+            // Row 2 (lower): The 5 kept bass stompboxes (ClassicFuzz=0, AutoWah=2, VintageFuzz=10, GraphicEq=11, CleanBoost=12)
             constexpr int rowGap = 12;
             const int cellHeight = juce::jmax(1, (area.getHeight() - rowGap) / 2);
-            const int rackH = juce::jmax(1, cellHeight - 6);
-            const int rackW = juce::jmin((area.getWidth() - 36) / 2, int(rackH * 2.25f));
-            const int totalTopW = rackW * 2 + 16;
+            const int rackH = juce::jmax(1, cellHeight - 4);
+            const int rackW = juce::jmin((area.getWidth() - 40) / 2, int(rackH * 2.35f));
+            const int totalTopW = rackW * 2 + 18;
             const int topX = area.getX() + (area.getWidth() - totalTopW) / 2;
             const int topY = area.getY() + (cellHeight - rackH) / 2;
 
             if (triCompCard)  triCompCard->setBounds(topX, topY, rackW, rackH);
-            if (triDriveCard) triDriveCard->setBounds(topX + rackW + 16, topY, rackW, rackH);
+            if (triDriveCard) triDriveCard->setBounds(topX + rackW + 18, topY, rackW, rackH);
 
             // Lower row: center the 5 kept stompboxes using their native aspect ratios from bounds
-            const std::array<int, 5> keptVisualIndices{{ 0, 1, 2, 11, 12 }};
+            const std::array<int, 5> keptVisualIndices{{ 0, 2, 10, 11, 12 }};
+            constexpr int pedalGap = 18;
             int totalBotW = 0;
             for (int v : keptVisualIndices)
                 totalBotW += bounds[size_t(v)].getWidth();
-            totalBotW += 4 * 10;
+            totalBotW += 4 * pedalGap;
             int botX = area.getX() + (area.getWidth() - totalBotW) / 2;
             const int botY = bounds[7].getY();
             for (int v : keptVisualIndices)
@@ -78,7 +79,7 @@ public:
                 const int h = bounds[size_t(v)].getHeight();
                 if (cards[size_t(v)])
                     cards[size_t(v)]->setBounds(botX, botY, w, h);
-                botX += w + 10;
+                botX += w + pedalGap;
             }
         }
         const auto last=bounds[12];

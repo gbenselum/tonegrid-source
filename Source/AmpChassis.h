@@ -41,6 +41,22 @@ public:
     void drawButtonBackground(juce::Graphics& g,juce::Button& b,const juce::Colour&,bool hover,bool down) override
     {
         using namespace juce;auto r=b.getLocalBounds().toFloat().reduced(1);const bool on=b.getToggleState()&&b.isEnabled();
+        if(b.getComponentID()=="instrument-mode")
+        {
+            g.setColour(Colour(0xff081218));
+            g.fillRoundedRectangle(r, 6.f);
+            auto segW = r.getWidth() * 0.5f;
+            auto activeSeg = on ? r.withLeft(r.getX() + segW).reduced(1.5f) : r.withWidth(segW).reduced(1.5f);
+            const auto accent = on ? Colour(0xff195670) : Colour(0xff1d3d4f);
+            const auto border = on ? Colour(0xff29b6f6) : Colour(0xff4ea6c9);
+            g.setColour(accent.withMultipliedAlpha(down ? 0.85f : (hover ? 1.1f : 1.0f)));
+            g.fillRoundedRectangle(activeSeg, 4.5f);
+            g.setColour(border.withAlpha(0.85f));
+            g.drawRoundedRectangle(activeSeg, 4.5f, 1.1f);
+            g.setColour(Colour(0xff263a47));
+            g.drawRoundedRectangle(r, 6.f, 1.f);
+            return;
+        }
         if(b.getComponentID().endsWith("-settings")){ui::paintControl(g,b.getLocalBounds().toFloat(),false,hover,down,b.isEnabled(),b.hasKeyboardFocus(true));return;}
         if(b.getComponentID().endsWith("-toggle"))
         {g.setColour(on?(b.isColourSpecified(TextButton::buttonOnColourId)?b.findColour(TextButton::buttonOnColourId):ui::switchOn()):ui::switchOff());g.fillRoundedRectangle(r,r.getHeight()*.5f);auto ball=r.reduced(4).withWidth(r.getHeight()-8);if(on)ball.setX(r.getRight()-r.getHeight()+4);g.setColour(Colours::white);g.fillEllipse(ball);return;}
@@ -49,6 +65,18 @@ public:
     void drawButtonText(juce::Graphics& g,juce::TextButton& b,bool over,bool down) override
     {
         using namespace juce;const auto id=b.getComponentID();g.setColour(ui::ink().withMultipliedAlpha(b.isEnabled()?1.f:ui::disabledOpacity));
+        if(id=="instrument-mode")
+        {
+            const bool bass = b.getToggleState();
+            const auto bounds = b.getLocalBounds();
+            const int half = bounds.getWidth() / 2;
+            g.setFont(ui::font(11.5f, true));
+            g.setColour(bass ? ui::secondaryInk().withAlpha(0.65f) : Colours::white);
+            g.drawText("GUITAR", bounds.withWidth(half), Justification::centred, false);
+            g.setColour(bass ? Colours::white : ui::secondaryInk().withAlpha(0.65f));
+            g.drawText("BASS", bounds.withTrimmedLeft(half), Justification::centred, false);
+            return;
+        }
         if(id.endsWith("-toggle"))return;
         if(id=="tuner")
         {auto r=b.getLocalBounds().toFloat().reduced(7);Path fork;fork.startNewSubPath(r.getX()+3,r.getY());fork.lineTo(r.getX()+3,r.getCentreY());fork.quadraticTo(r.getCentreX(),r.getBottom(),r.getRight()-3,r.getCentreY());fork.lineTo(r.getRight()-3,r.getY());fork.startNewSubPath(r.getCentreX(),r.getCentreY()+4);fork.lineTo(r.getCentreX(),r.getBottom()+2);g.strokePath(fork,PathStrokeType(1.8f,PathStrokeType::curved,PathStrokeType::rounded));return;}

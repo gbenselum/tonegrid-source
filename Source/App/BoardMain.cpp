@@ -391,7 +391,7 @@ public:
         const auto toolbar=tonegrid::ui::toolbarSections(header);
         for(int i=1;i<4;++i)sections[(size_t)i]=toolbar[(size_t)i-1];sections[6]=toolbar[3];sections[4]=toolbar[4];sections[5]=toolbar[5];logo.setBounds(tonegrid::ui::windowInset,tonegrid::ui::windowInset,tonegrid::ui::logoWidth,tonegrid::ui::headerHeight-26);
         playTab.setBounds(tonegrid::ui::windowInset+4,tonegrid::ui::windowInset+tonegrid::ui::headerHeight-26,52,24);jamTab.setBounds(playTab.getRight()+4,playTab.getY(),52,24);learnTab.setBounds(jamTab.getRight()+4,playTab.getY(),56,24);recordTab.setBounds(learnTab.getRight()+4,playTab.getY(),70,24);
-        bassModeToggle.setBounds(recordTab.getRight()+8,playTab.getY(),96,24);
+        bassModeToggle.setBounds(recordTab.getRight()+12,playTab.getY(),126,24);
         b.removeFromTop(tonegrid::ui::boardTopGap);auto footer=b.removeFromBottom(logVisible?88:32);auto stat=footer.removeFromTop(30);showLog.setBounds(stat.removeFromRight(94));sendDiagnostic.setBounds(stat.removeFromRight(138).reduced(2));const int logWidth=jmax(170,jmin(stat.getWidth()/4,stat.getWidth()-600-138-170));latestLog.setBounds(stat.removeFromRight(logWidth));checkUpdate.setBounds(stat.removeFromRight(138).reduced(2));versionLabel.setBounds(stat.removeFromRight(170));status.setBounds(stat);log.setBounds(footer);
         const auto recordWorkspace=b;b.removeFromBottom(8);sections[0]=b.removeFromBottom(tonegrid::ampui::compactHeight(b.getWidth()));b.removeFromBottom(10);
         auto inner=[this,&metrics](int i){return sections[(size_t)i].reduced(metrics.padding,4).withTrimmedTop(18);};

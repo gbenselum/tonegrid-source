@@ -48,6 +48,156 @@ inline juce::String formatHz(float hz)
         return juce::String(hz * 0.001f, 2) + " kHz";
     return juce::String(juce::roundToInt(hz)) + " Hz";
 }
+
+class BassRackLook final : public juce::LookAndFeel_V4
+{
+public:
+    explicit BassRackLook(bool isDriveUnit = false) : isDrive(isDriveUnit)
+    {
+        using namespace juce;
+        setColour(Slider::textBoxTextColourId, Colour(0xffdce9f2));
+        setColour(Slider::textBoxBackgroundColourId, Colours::transparentBlack);
+        setColour(Slider::textBoxOutlineColourId, Colours::transparentBlack);
+        setColour(ComboBox::backgroundColourId, Colour(0xff0b151d));
+        setColour(ComboBox::textColourId, Colour(0xffe2eef7));
+        setColour(ComboBox::outlineColourId, Colour(0xff253b4a));
+        setColour(PopupMenu::backgroundColourId, Colour(0xff0d1b24));
+        setColour(PopupMenu::textColourId, Colour(0xffe2eef7));
+        setColour(PopupMenu::highlightedBackgroundColourId, Colour(0xff1e3a4c));
+    }
+
+    juce::Font getComboBoxFont(juce::ComboBox&) override { return ui::font(12.5f); }
+    juce::Font getPopupMenuFont() override { return ui::font(13.0f); }
+    juce::Font getLabelFont(juce::Label&) override { return ui::font(11.5f, true); }
+
+    void drawComboBox(juce::Graphics& g, int w, int h, bool down, int, int, int, int, juce::ComboBox& box) override
+    {
+        const auto r = juce::Rectangle<float>(0.5f, 0.5f, float(w) - 1.0f, float(h) - 1.0f);
+        g.setColour(juce::Colour(box.isMouseOver() || down ? 0xff122330 : 0xff0a141c));
+        g.fillRoundedRectangle(r, 5.0f);
+        g.setColour(juce::Colour(box.isMouseOver() ? 0xff3b5c73 : 0xff233847));
+        g.drawRoundedRectangle(r, 5.0f, 1.0f);
+
+        juce::Path arrow;
+        const float cx = float(w) - 14.0f, cy = float(h) * 0.5f;
+        arrow.startNewSubPath(cx - 4.0f, cy - 2.0f);
+        arrow.lineTo(cx, cy + 2.5f);
+        arrow.lineTo(cx + 4.0f, cy - 2.0f);
+        g.setColour(juce::Colour(0xff9eb4c2));
+        g.strokePath(arrow, juce::PathStrokeType(1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
+    void drawButtonBackground(juce::Graphics& g, juce::Button& b, const juce::Colour&, bool hover, bool down) override
+    {
+        const auto r = b.getLocalBounds().toFloat().reduced(0.75f);
+        const bool on = b.getToggleState();
+        const auto txt = b.getButtonText();
+        const auto primary = isDrive ? juce::Colour(0xffff8a3d) : juce::Colour(0xff29b6f6);
+
+        juce::Colour bg(0xff10202b);
+        juce::Colour border(0xff2b4354);
+        if (txt == "S" && on)
+        {
+            bg = juce::Colour(0xff664d00);
+            border = juce::Colour(0xffffca28);
+        }
+        else if (txt == "M" && on)
+        {
+            bg = juce::Colour(0xff6b1d1c);
+            border = juce::Colour(0xffef5350);
+        }
+        else if (on)
+        {
+            bg = primary.withAlpha(0.26f);
+            border = primary;
+        }
+        else if (txt == "SPECTRUM & BANDS")
+        {
+            bg = primary.withAlpha(hover ? 0.24f : 0.14f);
+            border = primary.withAlpha(0.75f);
+        }
+
+        if (hover && !down)
+            bg = bg.brighter(0.12f);
+        g.setColour(bg);
+        g.fillRoundedRectangle(r, 5.0f);
+        g.setColour(border);
+        g.drawRoundedRectangle(r, 5.0f, on ? 1.3f : 1.0f);
+    }
+
+    void drawButtonText(juce::Graphics& g, juce::TextButton& b, bool, bool) override
+    {
+        const bool on = b.getToggleState();
+        const auto txt = b.getButtonText();
+        const auto primary = isDrive ? juce::Colour(0xffff8a3d) : juce::Colour(0xff29b6f6);
+        g.setFont(ui::font(11.5f, true));
+        if (txt == "SPECTRUM & BANDS")
+            g.setColour(primary.brighter(0.35f));
+        else if (on)
+            g.setColour(juce::Colours::white);
+        else
+            g.setColour(juce::Colour(0xffbfd0dc));
+        g.drawFittedText(txt, b.getLocalBounds().reduced(5, 1), juce::Justification::centred, 1);
+    }
+
+    void drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h, float pos, float start, float end, juce::Slider& s) override
+    {
+        using namespace juce;
+        const float diameter = jmin(float(w), float(h)) - 6.0f;
+        if (diameter <= 8.0f) return;
+        const auto r = Rectangle<float>(float(x), float(y), float(w), float(h)).withSizeKeepingCentre(diameter, diameter);
+        const float cx = r.getCentreX(), cy = r.getCentreY(), radius = diameter * 0.5f;
+        const auto accent = s.isColourSpecified(Slider::rotarySliderFillColourId)
+                                ? s.findColour(Slider::rotarySliderFillColourId)
+                                : (isDrive ? Colour(0xffff8a3d) : Colour(0xff29b6f6));
+
+        // Background track arc
+        Path bgArc;
+        bgArc.addCentredArc(cx, cy, radius - 1.5f, radius - 1.5f, 0.0f, start, end, true);
+        g.setColour(Colour(0xff182834));
+        g.strokePath(bgArc, PathStrokeType(2.8f, PathStrokeType::curved, PathStrokeType::rounded));
+
+        // Active value arc
+        const float angle = start + pos * (end - start);
+        Path valArc;
+        valArc.addCentredArc(cx, cy, radius - 1.5f, radius - 1.5f, 0.0f, start, angle, true);
+        g.setColour(accent);
+        g.strokePath(valArc, PathStrokeType(2.8f, PathStrokeType::curved, PathStrokeType::rounded));
+
+        // Outer shadow & dark metallic cap
+        const auto cap = r.reduced(5.5f);
+        g.setColour(Colours::black.withAlpha(0.65f));
+        g.fillEllipse(cap.translated(0.0f, 2.5f));
+        g.setGradientFill(ColourGradient(Colour(0xff2d3d49), cap.getX(), cap.getY(),
+                                         Colour(0xff0d151b), cap.getRight(), cap.getBottom(), false));
+        g.fillEllipse(cap);
+        g.setColour(Colour(0xff465c6b));
+        g.drawEllipse(cap, 1.0f);
+
+        // Pointer line
+        Path needle;
+        const float capR = cap.getWidth() * 0.5f;
+        needle.addRoundedRectangle(-1.2f, -capR + 2.5f, 2.4f, capR * 0.48f, 1.0f);
+        g.setColour(Colours::white);
+        g.fillPath(needle, AffineTransform::rotation(angle).translated(cx, cy));
+    }
+
+    void drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h, float pos, float, float, const juce::Slider::SliderStyle, juce::Slider&) override
+    {
+        using namespace juce;
+        const float cx = float(x) + float(w) * 0.5f;
+        g.setColour(Colour(0xff081117));
+        g.fillRoundedRectangle(cx - 2.5f, float(y), 5.0f, float(h), 2.0f);
+        g.setColour(Colour(0xff304959));
+        g.drawHorizontalLine(y + h / 2, cx - 5.0f, cx + 5.0f);
+        Rectangle<float> thumb(cx - 6.0f, pos - 3.5f, 12.0f, 7.0f);
+        g.setColour( isDrive ? Colour(0xffff8a3d) : Colour(0xff29b6f6));
+        g.fillRoundedRectangle(thumb, 2.0f);
+    }
+
+private:
+    bool isDrive = false;
+};
 } // namespace detail
 
 /**
@@ -463,11 +613,13 @@ public:
                        std::function<void()> onChooseCabIr = {})
         : processor(proc),
           unit(initialUnit),
+          rackLook(initialUnit == BassRackUnit::TriDrive),
           notifyHost(std::move(onStateChanged)),
           chooseBandNamCallback(std::move(onChooseBandNam)),
           chooseCabIrCallback(std::move(onChooseCabIr)),
           spectrum(proc, initialUnit)
     {
+        setLookAndFeel(&rackLook);
         setSize(980, 620);
 
         addAndMakeVisible(spectrum);
@@ -502,10 +654,10 @@ public:
         };
         addAndMakeVisible(orderButton);
 
-        configureKnob(inputKnob, -24.0, 24.0, 0.1, " dB");
-        configureKnob(outputKnob, -24.0, 24.0, 0.1, " dB");
-        configureKnob(mixKnob, 0.0, 100.0, 1.0, " %");
-        configureKnob(linkKnob, 0.0, 100.0, 1.0, " %");
+        configureHeaderKnob(inputKnob, -24.0, 24.0, 0.1, " dB");
+        configureHeaderKnob(outputKnob, -24.0, 24.0, 0.1, " dB");
+        configureHeaderKnob(mixKnob, 0.0, 100.0, 1.0, " %");
+        configureHeaderKnob(linkKnob, 0.0, 100.0, 1.0, " %");
         addAndMakeVisible(inputKnob);
         addAndMakeVisible(outputKnob);
         addAndMakeVisible(mixKnob);
@@ -524,6 +676,7 @@ public:
             for (size_t b = 0; b < 3; ++b)
             {
                 auto& col = compColumns[b];
+                const auto bCol = detail::bandColour(static_cast<int>(b));
                 for (int r = 0; r < 8; ++r)
                     col.ratioBox.addItem(triComp::ratioName(static_cast<multiband::DistressorRatio>(r)), r + 1);
                 for (int a = 0; a < 3; ++a)
@@ -535,9 +688,9 @@ public:
                 col.audioBox.onChange = [this] { commitUiToProcessor(); };
                 col.detectorBox.onChange = [this] { commitUiToProcessor(); };
 
-                configureKnob(col.attackKnob, 0.1, 50.0, 0.1, " ms");
-                configureKnob(col.releaseKnob, 30.0, 3000.0, 1.0, " ms");
-                configureKnob(col.levelKnob, -24.0, 24.0, 0.1, " dB");
+                configureKnob(col.attackKnob, 0.1, 50.0, 0.1, " ms", bCol);
+                configureKnob(col.releaseKnob, 30.0, 3000.0, 1.0, " ms", bCol);
+                configureKnob(col.levelKnob, -24.0, 24.0, 0.1, " dB", bCol);
 
                 col.soloBtn.setButtonText("S");
                 col.muteBtn.setButtonText("M");
@@ -559,17 +712,17 @@ public:
                 presetBox.addItem(triDrive::kPresets[static_cast<size_t>(i)].name, i + 1);
 
             // Low band controls
-            configureKnob(lowCompKnob, 0.0, 10.0, 0.1, "");
-            configureKnob(lowLpfKnob, 80.0, 500.0, 1.0, " Hz");
-            configureKnob(lowLevelKnob, -24.0, 24.0, 0.1, " dB");
+            configureKnob(lowCompKnob, 0.0, 10.0, 0.1, "", detail::bandColour(0));
+            configureKnob(lowLpfKnob, 80.0, 500.0, 1.0, " Hz", detail::bandColour(0));
+            configureKnob(lowLevelKnob, -24.0, 24.0, 0.1, " dB", detail::bandColour(0));
 
             // Mid band controls
             for (int c = 0; c < 5; ++c)
                 midCharBox.addItem(triDrive::characterName(static_cast<multiband::DriveCharacter>(c)), c + 1);
             midCharBox.onChange = [this] { commitUiToProcessor(); };
-            configureKnob(midDriveKnob, 0.0, 10.0, 0.1, "");
-            configureKnob(midPresenceKnob, -6.0, 6.0, 0.1, " dB");
-            configureKnob(midLevelKnob, -24.0, 24.0, 0.1, " dB");
+            configureKnob(midDriveKnob, 0.0, 10.0, 0.1, "", detail::bandColour(1));
+            configureKnob(midPresenceKnob, -6.0, 6.0, 0.1, " dB", detail::bandColour(1));
+            configureKnob(midLevelKnob, -24.0, 24.0, 0.1, " dB", detail::bandColour(1));
             midNamBtn.setButtonText("Load Mid NAM...");
             midNamBtn.onClick = [this] { if (chooseBandNamCallback) chooseBandNamCallback(0); syncFromProcessor(); };
 
@@ -577,9 +730,9 @@ public:
             for (int c : { 0, 1, 3, 4 })
                 highCharBox.addItem(triDrive::characterName(static_cast<multiband::DriveCharacter>(c)), c + 1);
             highCharBox.onChange = [this] { commitUiToProcessor(); };
-            configureKnob(highDriveKnob, 0.0, 10.0, 0.1, "");
-            configureKnob(highHpfKnob, 500.0, 5000.0, 10.0, " Hz");
-            configureKnob(highLevelKnob, -24.0, 24.0, 0.1, " dB");
+            configureKnob(highDriveKnob, 0.0, 10.0, 0.1, "", detail::bandColour(2));
+            configureKnob(highHpfKnob, 500.0, 5000.0, 10.0, " Hz", detail::bandColour(2));
+            configureKnob(highLevelKnob, -24.0, 24.0, 0.1, " dB", detail::bandColour(2));
             highNamBtn.setButtonText("Load High NAM...");
             highNamBtn.onClick = [this] { if (chooseBandNamCallback) chooseBandNamCallback(1); syncFromProcessor(); };
 
@@ -627,7 +780,11 @@ public:
         startTimerHz(20);
     }
 
-    ~BassRackEditorView() override { stopTimer(); }
+    ~BassRackEditorView() override
+    {
+        stopTimer();
+        setLookAndFeel(nullptr);
+    }
 
     void syncFromProcessor()
     {
@@ -711,16 +868,25 @@ public:
         g.fillAll(juce::Colour(0xff0b141a));
 
         // Top bar background
-        auto topBar = getLocalBounds().removeFromTop(50).toFloat();
+        auto topBar = getLocalBounds().removeFromTop(52).toFloat();
         g.setColour(juce::Colour(0xff111f28));
         g.fillRect(topBar);
         g.setColour(juce::Colour(0xff233746));
-        g.drawHorizontalLine(50, 0.0f, static_cast<float>(getWidth()));
+        g.drawHorizontalLine(52, 0.0f, static_cast<float>(getWidth()));
 
-        g.setFont(ui::font(18.0f, true));
+        g.setFont(ui::font(17.5f, true));
         g.setColour(unit == BassRackUnit::TriComp ? juce::Colour(0xff29b6f6) : juce::Colour(0xffff8a3d));
         g.drawText(unit == BassRackUnit::TriComp ? "TRI-COMP // 3-BAND DISTRESSOR" : "TRI-DRIVE // 3-BAND PARALLAX ENGINE",
-                   16, 10, 340, 30, juce::Justification::centredLeft);
+                   16, 11, 335, 30, juce::Justification::centredLeft);
+
+        // Header trim knob labels
+        g.setFont(ui::font(9.5f, true));
+        g.setColour(juce::Colour(0xff9bb0bd));
+        if (unit == BassRackUnit::TriComp)
+            g.drawText("SC LINK", 772, 2, 52, 12, juce::Justification::centred);
+        g.drawText("INPUT",  824, 2, 50, 12, juce::Justification::centred);
+        g.drawText("MIX",    874, 2, 50, 12, juce::Justification::centred);
+        g.drawText("OUTPUT", 924, 2, 50, 12, juce::Justification::centred);
 
         // Band column cards
         const auto lower = getLocalBounds().withTrimmedTop(308).reduced(14, 8);
@@ -743,38 +909,43 @@ public:
             g.setColour(detail::bandColour(b));
             g.drawText(titles[b], card.getX() + 12, card.getY() + 8, card.getWidth() - 80, 20, juce::Justification::centredLeft);
 
+            const int labelY = card.getY() + 114;
             if (unit == BassRackUnit::TriComp)
             {
-                g.setFont(ui::font(11.0f));
+                g.setFont(ui::font(10.5f, true));
                 g.setColour(juce::Colour(0xff90a4ae));
-                g.drawText("RATIO", card.getX() + 12, card.getY() + 36, 70, 18, juce::Justification::centredLeft);
-                g.drawText("HARMONICS", card.getX() + 112, card.getY() + 36, 90, 18, juce::Justification::centredLeft);
-                g.drawText("DETECTOR", card.getX() + 212, card.getY() + 36, 80, 18, juce::Justification::centredLeft);
-                g.drawText("ATTACK", card.getX() + 16, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                g.drawText("RELEASE", card.getX() + 112, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                g.drawText("LEVEL", card.getX() + 208, card.getBottom() - 32, 80, 16, juce::Justification::centred);
+                g.drawText("RATIO", card.getX() + 12, card.getY() + 36, 70, 16, juce::Justification::centredLeft);
+                g.drawText("HARMONICS", card.getX() + 110, card.getY() + 36, 90, 16, juce::Justification::centredLeft);
+                g.drawText("DETECTOR", card.getX() + 208, card.getY() + 36, 80, 16, juce::Justification::centredLeft);
+                g.drawText("ATTACK", card.getX() + 16, labelY, 80, 15, juce::Justification::centred);
+                g.drawText("RELEASE", card.getX() + 112, labelY, 80, 15, juce::Justification::centred);
+                g.drawText("LEVEL", card.getX() + 208, labelY, 80, 15, juce::Justification::centred);
             }
             else
             {
-                g.setFont(ui::font(11.0f));
+                g.setFont(ui::font(10.5f, true));
                 g.setColour(juce::Colour(0xff90a4ae));
                 if (b == 0)
                 {
-                    g.drawText("BUS COMP", card.getX() + 16, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                    g.drawText("CLEAN LPF", card.getX() + 112, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                    g.drawText("SUB LEVEL", card.getX() + 208, card.getBottom() - 32, 80, 16, juce::Justification::centred);
+                    g.drawText("BUS COMP", card.getX() + 16, labelY, 80, 15, juce::Justification::centred);
+                    g.drawText("CLEAN LPF", card.getX() + 112, labelY, 80, 15, juce::Justification::centred);
+                    g.drawText("SUB LEVEL", card.getX() + 208, labelY, 80, 15, juce::Justification::centred);
                 }
                 else if (b == 1)
                 {
-                    g.drawText("MID DRIVE", card.getX() + 16, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                    g.drawText("PRESENCE", card.getX() + 112, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                    g.drawText("MID LEVEL", card.getX() + 208, card.getBottom() - 32, 80, 16, juce::Justification::centred);
+                    g.drawText("CHARACTER", card.getX() + 12, card.getY() + 32, 95, 16, juce::Justification::centredLeft);
+                    g.drawText("NEURAL CAPTURE", card.getX() + 140, card.getY() + 32, 130, 16, juce::Justification::centredLeft);
+                    g.drawText("MID DRIVE", card.getX() + 16, labelY, 80, 15, juce::Justification::centred);
+                    g.drawText("PRESENCE", card.getX() + 112, labelY, 80, 15, juce::Justification::centred);
+                    g.drawText("MID LEVEL", card.getX() + 208, labelY, 80, 15, juce::Justification::centred);
                 }
                 else
                 {
-                    g.drawText("HIGH DRIVE", card.getX() + 16, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                    g.drawText("PRE HPF", card.getX() + 112, card.getBottom() - 32, 80, 16, juce::Justification::centred);
-                    g.drawText("HIGH LEVEL", card.getX() + 208, card.getBottom() - 32, 80, 16, juce::Justification::centred);
+                    g.drawText("CHARACTER", card.getX() + 12, card.getY() + 32, 95, 16, juce::Justification::centredLeft);
+                    g.drawText("NEURAL CAPTURE", card.getX() + 140, card.getY() + 32, 130, 16, juce::Justification::centredLeft);
+                    g.drawText("HIGH DRIVE", card.getX() + 16, labelY, 80, 15, juce::Justification::centred);
+                    g.drawText("PRE HPF", card.getX() + 112, labelY, 80, 15, juce::Justification::centred);
+                    g.drawText("HIGH LEVEL", card.getX() + 208, labelY, 80, 15, juce::Justification::centred);
                 }
             }
         }
@@ -782,13 +953,13 @@ public:
 
     void resized() override
     {
-        enableToggle.setBounds(355, 11, 86, 28);
-        presetBox.setBounds(448, 11, 210, 28);
-        orderButton.setBounds(666, 11, 152, 28);
+        enableToggle.setBounds(350, 12, 86, 28);
+        presetBox.setBounds(442, 12, 210, 28);
+        orderButton.setBounds(658, 12, 110, 28);
 
-        inputKnob.setBounds(825, 4, 48, 44);
-        mixKnob.setBounds(875, 4, 48, 44);
-        outputKnob.setBounds(925, 4, 48, 44);
+        inputKnob.setBounds(825, 13, 48, 37);
+        mixKnob.setBounds(875, 13, 48, 37);
+        outputKnob.setBounds(925, 13, 48, 37);
 
         spectrum.setBounds(14, 58, getWidth() - 28, 244);
 
@@ -797,8 +968,8 @@ public:
 
         if (unit == BassRackUnit::TriComp)
         {
-            linkKnob.setBounds(775, 4, 48, 44);
-            audioHpfToggle.setBounds(lower.getX() + 12, lower.getY() + 82, 90, 24);
+            linkKnob.setBounds(775, 13, 48, 37);
+            audioHpfToggle.setBounds(lower.getX() + 12, lower.getY() + 84, 92, 24);
             for (int b = 0; b < 3; ++b)
             {
                 juce::Rectangle<int> card(lower.getX() + b * (colW + 12), lower.getY(), colW, lower.getHeight());
@@ -810,10 +981,11 @@ public:
                 col.audioBox.setBounds(card.getX() + 110, card.getY() + 54, 92, 26);
                 col.detectorBox.setBounds(card.getX() + 208, card.getY() + 54, 92, 26);
 
-                const int knobY = card.getY() + 116;
-                col.attackKnob.setBounds(card.getX() + 16, knobY, 80, 120);
-                col.releaseKnob.setBounds(card.getX() + 112, knobY, 80, 120);
-                col.levelKnob.setBounds(card.getX() + 208, knobY, 80, 120);
+                const int knobY = card.getY() + 132;
+                const int knobH = juce::jmax(80, card.getBottom() - knobY - 10);
+                col.attackKnob.setBounds(card.getX() + 16, knobY, 80, knobH);
+                col.releaseKnob.setBounds(card.getX() + 112, knobY, 80, knobH);
+                col.levelKnob.setBounds(card.getX() + 208, knobY, 80, knobH);
             }
         }
         else
@@ -824,35 +996,36 @@ public:
                 juce::Rectangle<int> card(lower.getX() + b * (colW + 12), lower.getY(), colW, lower.getHeight());
                 driveSolo[static_cast<size_t>(b)].setBounds(card.getRight() - 62, card.getY() + 7, 24, 22);
                 driveMute[static_cast<size_t>(b)].setBounds(card.getRight() - 34, card.getY() + 7, 24, 22);
-                const int knobY = card.getY() + 116;
+                const int knobY = card.getY() + 132;
+                const int knobH = juce::jmax(80, card.getBottom() - knobY - 10);
 
                 if (b == 0)
                 {
-                    cabSimToggle.setBounds(card.getX() + 12, card.getY() + 42, 128, 26);
-                    cabIrBtn.setBounds(card.getX() + 146, card.getY() + 42, 152, 26);
-                    postEqToggle.setBounds(card.getX() + 12, card.getY() + 74, 128, 24);
+                    cabSimToggle.setBounds(card.getX() + 12, card.getY() + 38, 128, 26);
+                    cabIrBtn.setBounds(card.getX() + 146, card.getY() + 38, 152, 26);
+                    postEqToggle.setBounds(card.getX() + 12, card.getY() + 72, 128, 24);
                     for (int eqIdx = 0; eqIdx < 7; ++eqIdx)
-                        postEqSliders[static_cast<size_t>(eqIdx)].setBounds(card.getX() + 146 + eqIdx * 22, card.getY() + 72, 20, 42);
+                        postEqSliders[static_cast<size_t>(eqIdx)].setBounds(card.getX() + 146 + eqIdx * 22, card.getY() + 68, 20, 42);
 
-                    lowCompKnob.setBounds(card.getX() + 16, knobY, 80, 120);
-                    lowLpfKnob.setBounds(card.getX() + 112, knobY, 80, 120);
-                    lowLevelKnob.setBounds(card.getX() + 208, knobY, 80, 120);
+                    lowCompKnob.setBounds(card.getX() + 16, knobY, 80, knobH);
+                    lowLpfKnob.setBounds(card.getX() + 112, knobY, 80, knobH);
+                    lowLevelKnob.setBounds(card.getX() + 208, knobY, 80, knobH);
                 }
                 else if (b == 1)
                 {
-                    midCharBox.setBounds(card.getX() + 12, card.getY() + 48, 120, 26);
-                    midNamBtn.setBounds(card.getX() + 140, card.getY() + 48, 158, 26);
-                    midDriveKnob.setBounds(card.getX() + 16, knobY, 80, 120);
-                    midPresenceKnob.setBounds(card.getX() + 112, knobY, 80, 120);
-                    midLevelKnob.setBounds(card.getX() + 208, knobY, 80, 120);
+                    midCharBox.setBounds(card.getX() + 12, card.getY() + 50, 120, 26);
+                    midNamBtn.setBounds(card.getX() + 140, card.getY() + 50, 158, 26);
+                    midDriveKnob.setBounds(card.getX() + 16, knobY, 80, knobH);
+                    midPresenceKnob.setBounds(card.getX() + 112, knobY, 80, knobH);
+                    midLevelKnob.setBounds(card.getX() + 208, knobY, 80, knobH);
                 }
                 else
                 {
-                    highCharBox.setBounds(card.getX() + 12, card.getY() + 48, 120, 26);
-                    highNamBtn.setBounds(card.getX() + 140, card.getY() + 48, 158, 26);
-                    highDriveKnob.setBounds(card.getX() + 16, knobY, 80, 120);
-                    highHpfKnob.setBounds(card.getX() + 112, knobY, 80, 120);
-                    highLevelKnob.setBounds(card.getX() + 208, knobY, 80, 120);
+                    highCharBox.setBounds(card.getX() + 12, card.getY() + 50, 120, 26);
+                    highNamBtn.setBounds(card.getX() + 140, card.getY() + 50, 158, 26);
+                    highDriveKnob.setBounds(card.getX() + 16, knobY, 80, knobH);
+                    highHpfKnob.setBounds(card.getX() + 112, knobY, 80, knobH);
+                    highLevelKnob.setBounds(card.getX() + 208, knobY, 80, knobH);
                 }
             }
         }
@@ -866,10 +1039,24 @@ private:
         juce::TextButton soloBtn, muteBtn;
     };
 
-    void configureKnob(juce::Slider& s, double minV, double maxV, double step, const char* suffix)
+    void configureHeaderKnob(juce::Slider& s, double minV, double maxV, double step, const char* suffix)
     {
         s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-        s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 18);
+        s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        s.setPopupDisplayEnabled(true, true, this);
+        s.setRange(minV, maxV, step);
+        s.setTextValueSuffix(suffix);
+        s.onValueChange = [this] { if (!syncing) commitUiToProcessor(); };
+    }
+
+    void configureKnob(juce::Slider& s, double minV, double maxV, double step, const char* suffix, juce::Colour accent)
+    {
+        s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+        s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 70, 16);
+        s.setColour(juce::Slider::rotarySliderFillColourId, accent);
+        s.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        s.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0b141a));
+        s.setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xffdbe9f4));
         s.setRange(minV, maxV, step);
         s.setTextValueSuffix(suffix);
         s.onValueChange = [this] { if (!syncing) commitUiToProcessor(); };
@@ -955,6 +1142,7 @@ private:
 
     board::Processor& processor;
     BassRackUnit unit;
+    detail::BassRackLook rackLook;
     std::function<void()> notifyHost;
     std::function<void(int)> chooseBandNamCallback;
     std::function<void()> chooseCabIrCallback;
@@ -979,15 +1167,16 @@ private:
 /**
  * Wide Pedalboard Summary Card for TRI-COMP or TRI-DRIVE on the Bass Pedalboard.
  * Shows live mini spectrum + 3-band crossover preview, per-band GR/drive meters,
- * quick macro knobs, bypass footswitch, preset selector, and an "OPEN RACK EDITOR"
+ * quick macro knobs, bypass footswitch, preset selector, and a "SPECTRUM & BANDS"
  * button that launches the full-size Parallax X-style interactive spectrum analyzer.
  */
 class BassRackCard final : public juce::Component
 {
 public:
     BassRackCard(board::Processor& proc, BassRackUnit unitType)
-        : processor(proc), unit(unitType)
+        : processor(proc), unit(unitType), rackLook(unitType == BassRackUnit::TriDrive)
     {
+        setLookAndFeel(&rackLook);
         setComponentID(unit == BassRackUnit::TriComp ? "bass-card-tricomp" : "bass-card-tridrive");
 
         bypassBtn.setClickingTogglesState(true);
@@ -1024,19 +1213,20 @@ public:
 
         if (unit == BassRackUnit::TriComp)
         {
+            const auto cyan = juce::Colour(0xff29b6f6);
             for (int i = 0; i < static_cast<int>(triComp::kPresets.size()); ++i)
                 presetBox.addItem(triComp::kPresets[static_cast<size_t>(i)].name, i + 1);
-            setupMacroKnob(macroKnobs[0], -24.0, 24.0, " dB");
-            setupMacroKnob(macroKnobs[1], 0.0, 100.0, " %");
-            setupMacroKnob(macroKnobs[2], -24.0, 24.0, " dB");
+            setupMacroKnob(macroKnobs[0], -24.0, 24.0, " dB", cyan);
+            setupMacroKnob(macroKnobs[1], 0.0, 100.0, " %", cyan);
+            setupMacroKnob(macroKnobs[2], -24.0, 24.0, " dB", cyan);
         }
         else
         {
             for (int i = 0; i < static_cast<int>(triDrive::kPresets.size()); ++i)
                 presetBox.addItem(triDrive::kPresets[static_cast<size_t>(i)].name, i + 1);
-            setupMacroKnob(macroKnobs[0], 0.0, 10.0, "");
-            setupMacroKnob(macroKnobs[1], 0.0, 10.0, "");
-            setupMacroKnob(macroKnobs[2], 0.0, 10.0, "");
+            setupMacroKnob(macroKnobs[0], 0.0, 10.0, "", detail::bandColour(0));
+            setupMacroKnob(macroKnobs[1], 0.0, 10.0, "", detail::bandColour(1));
+            setupMacroKnob(macroKnobs[2], 0.0, 10.0, "", detail::bandColour(2));
         }
 
         openEditorBtn.setButtonText("SPECTRUM & BANDS");
@@ -1044,6 +1234,11 @@ public:
         addAndMakeVisible(openEditorBtn);
 
         sync();
+    }
+
+    ~BassRackCard() override
+    {
+        setLookAndFeel(nullptr);
     }
 
     std::function<void(BassRackUnit)> onOpenEditor;
@@ -1080,6 +1275,14 @@ public:
             repaint();
     }
 
+    juce::Rectangle<int> displayBounds() const noexcept
+    {
+        const int w = getWidth();
+        const int h = getHeight();
+        const int dispH = juce::jlimit(58, 92, int(h * 0.30f));
+        return { 20, 44, juce::jmax(40, w - 40), dispH };
+    }
+
     void paint(juce::Graphics& g) override
     {
         const auto area = getLocalBounds().toFloat().reduced(2.0f);
@@ -1087,82 +1290,168 @@ public:
         const bool active = isComp ? processor.getTriComp().enabled : processor.getTriDrive().enabled;
         const auto accent = isComp ? juce::Colour(0xff29b6f6) : juce::Colour(0xffff8a3d);
 
-        // Card chassis
-        g.setGradientFill(juce::ColourGradient(juce::Colour(0xff16242d), 0.0f, area.getY(),
+        // Card chassis with drop shadow and brushed rack faceplate gradient
+        g.setGradientFill(juce::ColourGradient(juce::Colour(0xff172630), 0.0f, area.getY(),
                                                juce::Colour(0xff0b1318), 0.0f, area.getBottom(), false));
-        g.fillRoundedRectangle(area, 10.0f);
-        g.setColour(active ? accent.withAlpha(0.85f) : juce::Colour(0xff2b3e4b));
-        g.drawRoundedRectangle(area, 10.0f, active ? 2.0f : 1.2f);
+        g.fillRoundedRectangle(area, 9.0f);
 
-        // Title & Subtitle
-        g.setFont(ui::font(15.0f, true));
+        // Hardware rack ears on left/right rails
+        for (float railX : { area.getX() + 3.0f, area.getRight() - 12.0f })
+        {
+            juce::Rectangle<float> ear(railX, area.getY() + 6.0f, 9.0f, area.getHeight() - 12.0f);
+            g.setColour(juce::Colour(0xff0d171e));
+            g.fillRoundedRectangle(ear, 3.0f);
+            for (float sy : { ear.getY() + 14.0f, ear.getBottom() - 14.0f })
+            {
+                g.setColour(juce::Colour(0xff2d404d));
+                g.fillEllipse(ear.getCentreX() - 3.0f, sy - 3.0f, 6.0f, 6.0f);
+                g.setColour(juce::Colour(0xff080f14));
+                g.drawLine(ear.getCentreX() - 2.0f, sy, ear.getCentreX() + 2.0f, sy, 1.0f);
+            }
+        }
+
+        g.setColour(active ? accent.withAlpha(0.85f) : juce::Colour(0xff293d4b));
+        g.drawRoundedRectangle(area, 9.0f, active ? 1.8f : 1.1f);
+
+        // Status LED + Title & Subtitle
+        const juce::Rectangle<float> led(22.0f, 15.0f, 8.0f, 8.0f);
+        if (active)
+        {
+            g.setColour(accent.withAlpha(0.30f));
+            g.fillEllipse(led.expanded(3.0f));
+        }
+        g.setColour(active ? accent : juce::Colour(0xff344652));
+        g.fillEllipse(led);
+
+        g.setFont(ui::font(15.5f, true));
         g.setColour(juce::Colours::white);
-        g.drawText(isComp ? "TRI-COMP" : "TRI-DRIVE", 14, 10, 140, 20, juce::Justification::centredLeft);
+        g.drawText(isComp ? "TRI-COMP" : "TRI-DRIVE", 36, 9, 140, 20, juce::Justification::centredLeft);
 
-        g.setFont(ui::font(10.5f));
+        g.setFont(ui::font(10.0f, true));
         g.setColour(accent);
-        g.drawText(isComp ? "3-BAND DISTRESSOR" : "3-BAND PARALLAX DRIVE", 14, 27, 175, 16, juce::Justification::centredLeft);
+        g.drawText(isComp ? "3-BAND DISTRESSOR" : "3-BAND PARALLAX DRIVE", 36, 26, 195, 14, juce::Justification::centredLeft);
 
         // Mini Crossover & Band GR/Drive Display
-        juce::Rectangle<float> display(14.0f, 48.0f, area.getWidth() - 28.0f, juce::jmax(38.0f, area.getHeight() * 0.28f));
-        g.setColour(juce::Colour(0xff070e13));
+        const auto display = displayBounds().toFloat();
+        g.setColour(juce::Colour(0xff060c11));
         g.fillRoundedRectangle(display, 6.0f);
+
+        // Subtle grid lines inside display
+        g.setColour(juce::Colour(0xff13222d));
+        for (float hz : { 100.0f, 1000.0f, 5000.0f })
+        {
+            const float gx = display.getX() + detail::freqToNormX(hz) * display.getWidth();
+            g.drawVerticalLine(juce::roundToInt(gx), display.getY() + 1.0f, display.getBottom() - 1.0f);
+        }
+        g.drawHorizontalLine(juce::roundToInt(display.getCentreY()), display.getX() + 1.0f, display.getRight() - 1.0f);
 
         const float f1 = isComp ? processor.getTriComp().lowMidHz : processor.getTriDrive().lowMidHz;
         const float f2 = isComp ? processor.getTriComp().midHighHz : processor.getTriDrive().midHighHz;
         const float x1 = display.getX() + detail::freqToNormX(f1) * display.getWidth();
         const float x2 = display.getX() + detail::freqToNormX(f2) * display.getWidth();
         const std::array<float, 4> edges{{ display.getX(), x1, x2, display.getRight() }};
+        const char* bandNames[3] = { "LOW", "MID", "HIGH" };
 
         for (int b = 0; b < 3; ++b)
         {
             juce::Rectangle<float> seg(edges[static_cast<size_t>(b)], display.getY(),
                                        edges[static_cast<size_t>(b + 1)] - edges[static_cast<size_t>(b)], display.getHeight());
-            g.setColour(detail::bandColour(b).withAlpha(active ? 0.18f : 0.06f));
+            const auto bCol = detail::bandColour(b);
+            g.setColour(bCol.withAlpha(active ? 0.16f : 0.05f));
             g.fillRect(seg);
 
-            g.setFont(ui::font(10.0f, true));
-            g.setColour(detail::bandColour(b));
+            // Band name badge in top-left of segment
+            g.setFont(ui::font(9.5f, true));
+            g.setColour(bCol.withAlpha(0.85f));
+            g.drawText(bandNames[b], seg.toNearestInt().reduced(6, 4).removeFromTop(13), juce::Justification::centredLeft);
+
+            // Primary band summary in center
+            g.setFont(ui::font(11.5f, true));
+            g.setColour(juce::Colours::white.withAlpha(active ? 0.95f : 0.55f));
+            float barNorm = 0.0f;
             if (isComp)
             {
                 const auto bp = processor.getTriComp().bands[static_cast<size_t>(b)];
                 const float gr = processor.triCompProcessor().readMeters().grDb[static_cast<size_t>(b)];
-                g.drawText(juce::String(triComp::ratioName(bp.ratio)) + "  -" + juce::String(gr, 1) + "dB",
+                const juce::String modeStr = triComp::audioModeName(bp.audioMode);
+                g.drawText(juce::String(triComp::ratioName(bp.ratio)) + "  " + modeStr,
                            seg.toNearestInt().reduced(4, 2), juce::Justification::centred);
+                barNorm = juce::jlimit(0.0f, 1.0f, gr / 18.0f);
+                g.setFont(ui::font(9.5f));
+                g.setColour(bCol);
+                g.drawText("-" + juce::String(gr, 1) + " dB",
+                           seg.toNearestInt().reduced(6, 4).removeFromTop(13), juce::Justification::centredRight);
             }
             else
             {
                 const auto p = processor.getTriDrive();
-                juce::String summary = (b == 0)
-                                           ? ("COMP " + juce::String(p.lowComp, 1))
-                                           : (b == 1 ? juce::String(triDrive::characterName(p.midCharacter)) + " " + juce::String(p.midDrive, 1)
-                                                     : juce::String(triDrive::characterName(p.highCharacter)) + " " + juce::String(p.highDrive, 1));
+                juce::String summary;
+                if (b == 0)
+                {
+                    summary = "COMP " + juce::String(p.lowComp, 1);
+                    barNorm = juce::jlimit(0.0f, 1.0f, p.lowComp * 0.1f);
+                }
+                else if (b == 1)
+                {
+                    summary = juce::String(triDrive::characterName(p.midCharacter)) + "  " + juce::String(p.midDrive, 1);
+                    barNorm = juce::jlimit(0.0f, 1.0f, p.midDrive * 0.1f);
+                }
+                else
+                {
+                    summary = juce::String(triDrive::characterName(p.highCharacter)) + "  " + juce::String(p.highDrive, 1);
+                    barNorm = juce::jlimit(0.0f, 1.0f, p.highDrive * 0.1f);
+                }
                 g.drawText(summary, seg.toNearestInt().reduced(4, 2), juce::Justification::centred);
             }
+
+            // Bottom activity/GR meter bar inside segment
+            auto meterTrack = seg.reduced(6.0f, 0.0f).removeFromBottom(7.0f).withTrimmedBottom(3.0f);
+            g.setColour(juce::Colour(0xff101d26));
+            g.fillRoundedRectangle(meterTrack, 2.0f);
+            if (barNorm > 0.01f)
+            {
+                g.setColour(bCol);
+                g.fillRoundedRectangle(meterTrack.withWidth(meterTrack.getWidth() * barNorm), 2.0f);
+            }
         }
-        g.setColour(juce::Colours::white.withAlpha(0.65f));
-        g.drawVerticalLine(juce::roundToInt(x1), display.getY(), display.getBottom());
-        g.drawVerticalLine(juce::roundToInt(x2), display.getY(), display.getBottom());
-        g.setColour(juce::Colour(0xff223644));
+
+        // Crossover vertical lines & frequency pills
+        for (int c = 0; c < 2; ++c)
+        {
+            const float cx = (c == 0) ? x1 : x2;
+            const float hz = (c == 0) ? f1 : f2;
+            g.setColour(juce::Colours::white.withAlpha(0.75f));
+            g.drawVerticalLine(juce::roundToInt(cx), display.getY(), display.getBottom());
+
+            juce::Rectangle<float> pill(cx - 26.0f, display.getBottom() - 18.0f, 52.0f, 14.0f);
+            g.setColour(juce::Colour(0xe00b161e));
+            g.fillRoundedRectangle(pill, 3.5f);
+            g.setColour(juce::Colour(0xff385468));
+            g.drawRoundedRectangle(pill, 3.5f, 0.8f);
+            g.setFont(ui::font(9.0f, true));
+            g.setColour(juce::Colour(0xffd0e2ee));
+            g.drawText(detail::formatHz(hz), pill.toNearestInt(), juce::Justification::centred);
+        }
+
+        g.setColour(juce::Colour(0xff233847));
         g.drawRoundedRectangle(display, 6.0f, 1.0f);
 
-        // Knob labels
+        // Knob labels cleanly ABOVE each rotary knob so they never collide with the value readout below
         const char* labelsComp[3] = { "INPUT", "MIX", "OUTPUT" };
         const char* labelsDrive[3] = { "LOW COMP", "MID DRIVE", "HIGH DRIVE" };
         g.setFont(ui::font(10.5f, true));
-        g.setColour(juce::Colour(0xff9bb0bd));
         for (size_t i = 0; i < 3; ++i)
         {
             const auto kb = macroKnobs[i].getBounds();
+            g.setColour(isComp ? juce::Colour(0xffa7bcc9) : detail::bandColour(static_cast<int>(i)));
             g.drawText(isComp ? labelsComp[i] : labelsDrive[i],
-                       kb.getX() - 6, kb.getBottom() - 2, kb.getWidth() + 12, 16, juce::Justification::centred);
+                       kb.getX() - 12, kb.getY() - 15, kb.getWidth() + 24, 15, juce::Justification::centred);
         }
     }
 
     void mouseUp(const juce::MouseEvent& e) override
     {
-        const auto display = juce::Rectangle<int>(14, 48, getWidth() - 28, juce::jmax(38, int(getHeight() * 0.28f)));
-        if (display.contains(e.getPosition()) && onOpenEditor)
+        if (displayBounds().contains(e.getPosition()) && onOpenEditor)
             onOpenEditor(unit);
     }
 
@@ -1171,24 +1460,29 @@ public:
         const int w = getWidth();
         const int h = getHeight();
 
-        bypassBtn.setBounds(w - 76, 10, 62, 26);
-        openEditorBtn.setBounds(w - 220, 10, 138, 26);
+        bypassBtn.setBounds(w - 82, 10, 62, 26);
+        openEditorBtn.setBounds(w - 226, 10, 138, 26);
 
-        const int displayBottom = 48 + juce::jmax(38, int(h * 0.28f));
-        presetBox.setBounds(14, displayBottom + 6, w - 28, 24);
+        const auto disp = displayBounds();
+        presetBox.setBounds(20, disp.getBottom() + 6, w - 40, 24);
 
-        const int knobTop = presetBox.getBottom() + 4;
-        const int knobH = juce::jmax(48, h - knobTop - 20);
-        const int colW = (w - 28) / 3;
+        const int knobTop = presetBox.getBottom() + 19;
+        const int knobH = juce::jmax(44, h - knobTop - 6);
+        const int knobW = juce::jmin(84, knobH + 8);
+        const int colW = (w - 40) / 3;
         for (int i = 0; i < 3; ++i)
-            macroKnobs[static_cast<size_t>(i)].setBounds(14 + i * colW + (colW - 72) / 2, knobTop, 72, knobH);
+            macroKnobs[static_cast<size_t>(i)].setBounds(20 + i * colW + (colW - knobW) / 2, knobTop, knobW, knobH);
     }
 
 private:
-    void setupMacroKnob(juce::Slider& s, double minV, double maxV, const char* suffix)
+    void setupMacroKnob(juce::Slider& s, double minV, double maxV, const char* suffix, juce::Colour accent)
     {
         s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-        s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 58, 15);
+        s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 15);
+        s.setColour(juce::Slider::rotarySliderFillColourId, accent);
+        s.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        s.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff081016));
+        s.setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xffdbe9f4));
         s.setRange(minV, maxV, 0.1);
         s.setTextValueSuffix(suffix);
         s.onValueChange = [this] { if (!syncing) commitMacros(); };
@@ -1218,6 +1512,7 @@ private:
 
     board::Processor& processor;
     BassRackUnit unit;
+    detail::BassRackLook rackLook;
     bool syncing = false;
     juce::TextButton bypassBtn, openEditorBtn;
     juce::ComboBox presetBox;

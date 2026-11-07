@@ -374,6 +374,38 @@ inline bool run(const juce::File& models, juce::String& report)
             const auto editorSnap = editor.createComponentSnapshot(editor.getLocalBounds());
             check(editorSnap.isValid() && editorSnap.getWidth() == 980 && editorSnap.getHeight() == 620,
                   "BassRackEditorView renders full 980x620 interactive spectrum and multiband control view");
+
+            // Full PlayView Bass mode non-overlap & layout check
+            tonegrid::recording::SessionRecorder rec(File{});
+            tonegrid::looping::Engine loop;
+            tonegrid::play::View playView(rec, loop);
+            for (int v = 0; v < board::count; ++v)
+            {
+                playView.cards[(size_t)v] = std::make_unique<PedalCard>(v, proc);
+                playView.addAndMakeVisible(*playView.cards[(size_t)v]);
+            }
+            playView.triCompCard = std::make_unique<tonegrid::play::BassRackCard>(proc, tonegrid::play::BassRackUnit::TriComp);
+            playView.triDriveCard = std::make_unique<tonegrid::play::BassRackCard>(proc, tonegrid::play::BassRackUnit::TriDrive);
+            playView.addChildComponent(*playView.triCompCard);
+            playView.addChildComponent(*playView.triDriveCard);
+            playView.setSize(1620, 620);
+            playView.setInstrumentMode(tonegrid::InstrumentMode::Bass, true);
+
+            std::vector<Rectangle<int>> visibleRects;
+            if (playView.triCompCard->isVisible()) visibleRects.push_back(playView.triCompCard->getBounds());
+            if (playView.triDriveCard->isVisible()) visibleRects.push_back(playView.triDriveCard->getBounds());
+            for (int v = 0; v < board::count; ++v)
+                if (playView.cards[(size_t)v]->isVisible())
+                    visibleRects.push_back(playView.cards[(size_t)v]->getBounds());
+
+            bool anyOverlap = false;
+            for (size_t i = 0; i < visibleRects.size(); ++i)
+                for (size_t j = i + 1; j < visibleRects.size(); ++j)
+                    if (visibleRects[i].intersects(visibleRects[j]))
+                        anyOverlap = true;
+
+            check(visibleRects.size() == 7 && !anyOverlap,
+                  "PlayView in Bass mode positions 2 rack cards and 5 bass stompboxes with zero overlap");
         }
     }
 
