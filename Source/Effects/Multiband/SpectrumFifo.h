@@ -9,7 +9,7 @@ namespace tonegrid::multiband
 {
 /**
  * Lock-free audio-to-UI dual-channel (pre/post) sample ring buffer and FFT computer
- * for the interactive Parallax X-style spectrum analyzer in TRI-COMP and TRI-DRIVE.
+ * for the interactive spectrum analyzer in TRI-COMP and TRI-DRIVE.
  *
  * Audio thread only calls push(preSample, postSample) which writes into a fixed
  * atomic ring buffer with zero locks or allocations.
@@ -66,7 +66,7 @@ public:
     }
 
     // UI thread: copies the latest 2048 samples, applies Hann window + 4.5 dB/oct visual
-    // tilt (so bass & treble look balanced like Parallax X), and updates smoothed dB bins.
+    // tilt (so bass & treble look balanced), and updates smoothed dB bins.
     void computeSpectrum(std::array<float, kNumBins>& preDbOut,
                          std::array<float, kNumBins>& postDbOut) noexcept
     {

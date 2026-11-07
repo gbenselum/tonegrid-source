@@ -122,10 +122,10 @@ inline bool decodeBassRack(const XmlElement& rack, State& out)
             if (idx < 0 || idx >= 3)
                 return false;
             auto& b = p.bands[static_cast<size_t>(idx)];
-            b.ratio = static_cast<tonegrid::multiband::DistressorRatio>(bn->getIntAttribute("ratio", static_cast<int>(b.ratio)));
+            b.ratio = static_cast<tonegrid::multiband::CompRatio>(bn->getIntAttribute("ratio", static_cast<int>(b.ratio)));
             b.attackMs = static_cast<float>(bn->getDoubleAttribute("attackMs", b.attackMs));
             b.releaseMs = static_cast<float>(bn->getDoubleAttribute("releaseMs", b.releaseMs));
-            b.audioMode = static_cast<tonegrid::multiband::DistressorAudioMode>(bn->getIntAttribute("audioMode", static_cast<int>(b.audioMode)));
+            b.audioMode = static_cast<tonegrid::multiband::CompAudioMode>(bn->getIntAttribute("audioMode", static_cast<int>(b.audioMode)));
             b.detectorMode = static_cast<tonegrid::multiband::DetectorMode>(bn->getIntAttribute("detectorMode", static_cast<int>(b.detectorMode)));
             b.levelDb = static_cast<float>(bn->getDoubleAttribute("levelDb", b.levelDb));
             b.solo = bn->getBoolAttribute("solo", false);

@@ -8,19 +8,19 @@
 
 namespace tonegrid::triComp
 {
+using tonegrid::multiband::CompAudioMode;
+using tonegrid::multiband::CompBandCell;
+using tonegrid::multiband::CompRatio;
 using tonegrid::multiband::DetectorMode;
-using tonegrid::multiband::DistressorAudioMode;
-using tonegrid::multiband::DistressorBandCell;
-using tonegrid::multiband::DistressorRatio;
 using tonegrid::multiband::SpectrumFifo;
 using tonegrid::multiband::ThreeBandSplitter;
 
 struct BandParameters
 {
-    DistressorRatio ratio = DistressorRatio::R4_1;
+    CompRatio ratio = CompRatio::R4_1;
     float attackMs = 5.0f;      // 0.1 .. 50.0 ms
     float releaseMs = 150.0f;   // 30.0 .. 3000.0 ms
-    DistressorAudioMode audioMode = DistressorAudioMode::Clean;
+    CompAudioMode audioMode = CompAudioMode::Clean;
     DetectorMode detectorMode = DetectorMode::Off;
     float levelDb = 0.0f;       // -24 .. +24 dB
     bool solo = false;
@@ -31,7 +31,7 @@ struct Parameters
 {
     bool enabled = false;
     int preset = 0;             // 0 .. 7
-    float inputDb = 0.0f;       // -24 .. +24 dB (drives into fixed band thresholds like hardware Distressor Input)
+    float inputDb = 0.0f;       // -24 .. +24 dB (drives into fixed band thresholds)
     float outputDb = 0.0f;      // -24 .. +24 dB
     float mix = 1.0f;           // 0.0 .. 1.0
     float lowMidHz = 140.0f;    // 40 .. 500 Hz
@@ -50,51 +50,51 @@ struct PresetSpec
 inline constexpr std::array<PresetSpec, 8> kPresets{{
     { "01 Fingerstyle Even",
       Parameters{ false, 0,  4.0f, 0.0f, 1.0f, 130.0f, 1400.0f, 0.25f, false, {{
-          { DistressorRatio::R6_1,       8.0f,  180.0f, DistressorAudioMode::Clean, DetectorMode::HighPass,     1.5f, false, false },
-          { DistressorRatio::R4_1,       4.5f,  130.0f, DistressorAudioMode::Dist2, DetectorMode::Off,          1.0f, false, false },
-          { DistressorRatio::R3_1,       3.0f,  110.0f, DistressorAudioMode::Clean, DetectorMode::BandEmphasis, 0.5f, false, false }
+          { CompRatio::R6_1,       8.0f,  180.0f, CompAudioMode::Clean, DetectorMode::HighPass,     1.5f, false, false },
+          { CompRatio::R4_1,       4.5f,  130.0f, CompAudioMode::Dist2, DetectorMode::Off,          1.0f, false, false },
+          { CompRatio::R3_1,       3.0f,  110.0f, CompAudioMode::Clean, DetectorMode::BandEmphasis, 0.5f, false, false }
       }} } },
     { "02 Pick Punch",
       Parameters{ false, 1,  5.5f, 0.0f, 1.0f, 150.0f, 1600.0f, 0.15f, false, {{
-          { DistressorRatio::R6_1,      12.0f,  140.0f, DistressorAudioMode::Clean, DetectorMode::HighPass,     2.0f, false, false },
-          { DistressorRatio::R6_1,       9.0f,  110.0f, DistressorAudioMode::Dist3, DetectorMode::BandEmphasis, 1.5f, false, false },
-          { DistressorRatio::R4_1,       2.0f,   95.0f, DistressorAudioMode::Dist2, DetectorMode::BandEmphasis, 0.0f, false, false }
+          { CompRatio::R6_1,      12.0f,  140.0f, CompAudioMode::Clean, DetectorMode::HighPass,     2.0f, false, false },
+          { CompRatio::R6_1,       9.0f,  110.0f, CompAudioMode::Dist3, DetectorMode::BandEmphasis, 1.5f, false, false },
+          { CompRatio::R4_1,       2.0f,   95.0f, CompAudioMode::Dist2, DetectorMode::BandEmphasis, 0.0f, false, false }
       }} } },
     { "03 Slap Tamer",
       Parameters{ false, 2,  6.5f, 0.0f, 1.0f, 120.0f, 1800.0f, 0.10f, true, {{
-          { DistressorRatio::R10_1_Opto, 6.0f,  160.0f, DistressorAudioMode::Clean, DetectorMode::HighPass,     2.0f, false, false },
-          { DistressorRatio::R4_1,       5.0f,  130.0f, DistressorAudioMode::Clean, DetectorMode::Off,         -1.0f, false, false },
-          { DistressorRatio::R20_1,      0.4f,   75.0f, DistressorAudioMode::Dist2, DetectorMode::BandEmphasis, 1.0f, false, false }
+          { CompRatio::R10_1_Opto, 6.0f,  160.0f, CompAudioMode::Clean, DetectorMode::HighPass,     2.0f, false, false },
+          { CompRatio::R4_1,       5.0f,  130.0f, CompAudioMode::Clean, DetectorMode::Off,         -1.0f, false, false },
+          { CompRatio::R20_1,      0.4f,   75.0f, CompAudioMode::Dist2, DetectorMode::BandEmphasis, 1.0f, false, false }
       }} } },
     { "04 Motown Opto",
       Parameters{ false, 3,  5.0f, 1.0f, 1.0f, 160.0f, 1200.0f, 0.65f, false, {{
-          { DistressorRatio::R10_1_Opto,18.0f,  420.0f, DistressorAudioMode::Dist2, DetectorMode::HighPass,     2.5f, false, false },
-          { DistressorRatio::R10_1_Opto,15.0f,  380.0f, DistressorAudioMode::Dist2, DetectorMode::Off,          1.5f, false, false },
-          { DistressorRatio::R6_1,      10.0f,  300.0f, DistressorAudioMode::Dist2, DetectorMode::Off,         -1.5f, false, false }
+          { CompRatio::R10_1_Opto,18.0f,  420.0f, CompAudioMode::Dist2, DetectorMode::HighPass,     2.5f, false, false },
+          { CompRatio::R10_1_Opto,15.0f,  380.0f, CompAudioMode::Dist2, DetectorMode::Off,          1.5f, false, false },
+          { CompRatio::R6_1,      10.0f,  300.0f, CompAudioMode::Dist2, DetectorMode::Off,         -1.5f, false, false }
       }} } },
     { "05 Modern Metal Glue",
       Parameters{ false, 4,  7.0f, 0.0f, 1.0f, 140.0f, 1500.0f, 0.20f, true, {{
-          { DistressorRatio::R20_1,      5.0f,  120.0f, DistressorAudioMode::Clean, DetectorMode::HighPass,     3.0f, false, false },
-          { DistressorRatio::R6_1,       4.0f,  110.0f, DistressorAudioMode::Dist3, DetectorMode::BandEmphasis, 1.5f, false, false },
-          { DistressorRatio::R6_1,       1.5f,   90.0f, DistressorAudioMode::Dist3, DetectorMode::BandEmphasis, 2.0f, false, false }
+          { CompRatio::R20_1,      5.0f,  120.0f, CompAudioMode::Clean, DetectorMode::HighPass,     3.0f, false, false },
+          { CompRatio::R6_1,       4.0f,  110.0f, CompAudioMode::Dist3, DetectorMode::BandEmphasis, 1.5f, false, false },
+          { CompRatio::R6_1,       1.5f,   90.0f, CompAudioMode::Dist3, DetectorMode::BandEmphasis, 2.0f, false, false }
       }} } },
     { "06 Tape Warmth 1:1",
       Parameters{ false, 5,  3.0f, 0.0f, 1.0f, 150.0f, 1500.0f, 0.50f, false, {{
-          { DistressorRatio::R1_1,      10.0f,  200.0f, DistressorAudioMode::Dist2, DetectorMode::Off,          1.0f, false, false },
-          { DistressorRatio::R1_1,      10.0f,  200.0f, DistressorAudioMode::Dist2, DetectorMode::Off,          1.5f, false, false },
-          { DistressorRatio::R1_1,      10.0f,  200.0f, DistressorAudioMode::Dist3, DetectorMode::Off,          0.5f, false, false }
+          { CompRatio::R1_1,      10.0f,  200.0f, CompAudioMode::Dist2, DetectorMode::Off,          1.0f, false, false },
+          { CompRatio::R1_1,      10.0f,  200.0f, CompAudioMode::Dist2, DetectorMode::Off,          1.5f, false, false },
+          { CompRatio::R1_1,      10.0f,  200.0f, CompAudioMode::Dist3, DetectorMode::Off,          0.5f, false, false }
       }} } },
     { "07 Sub Lock Nuke",
       Parameters{ false, 6,  8.0f, 0.0f, 0.85f, 110.0f, 1300.0f, 0.0f, true, {{
-          { DistressorRatio::Nuke,       1.2f,  110.0f, DistressorAudioMode::Clean, DetectorMode::HighPass,     3.5f, false, false },
-          { DistressorRatio::R4_1,       6.0f,  140.0f, DistressorAudioMode::Dist2, DetectorMode::Off,          1.0f, false, false },
-          { DistressorRatio::R3_1,       4.0f,  120.0f, DistressorAudioMode::Clean, DetectorMode::Off,          0.5f, false, false }
+          { CompRatio::Nuke,       1.2f,  110.0f, CompAudioMode::Clean, DetectorMode::HighPass,     3.5f, false, false },
+          { CompRatio::R4_1,       6.0f,  140.0f, CompAudioMode::Dist2, DetectorMode::Off,          1.0f, false, false },
+          { CompRatio::R3_1,       4.0f,  120.0f, CompAudioMode::Clean, DetectorMode::Off,          0.5f, false, false }
       }} } },
     { "08 Parallel Smash",
       Parameters{ false, 7, 10.0f, 0.0f, 0.55f, 145.0f, 1550.0f, 0.40f, false, {{
-          { DistressorRatio::Nuke,       0.8f,  130.0f, DistressorAudioMode::Dist2, DetectorMode::HighPass,     3.0f, false, false },
-          { DistressorRatio::Nuke,       0.8f,  120.0f, DistressorAudioMode::Dist3, DetectorMode::BandEmphasis, 2.5f, false, false },
-          { DistressorRatio::R20_1,      0.5f,   95.0f, DistressorAudioMode::Dist2, DetectorMode::BandEmphasis, 2.0f, false, false }
+          { CompRatio::Nuke,       0.8f,  130.0f, CompAudioMode::Dist2, DetectorMode::HighPass,     3.0f, false, false },
+          { CompRatio::Nuke,       0.8f,  120.0f, CompAudioMode::Dist3, DetectorMode::BandEmphasis, 2.5f, false, false },
+          { CompRatio::R20_1,      0.5f,   95.0f, CompAudioMode::Dist2, DetectorMode::BandEmphasis, 2.0f, false, false }
       }} } }
 }};
 
@@ -107,30 +107,30 @@ inline Parameters presetDefaults(int index, bool keepEnabled = false) noexcept
     return p;
 }
 
-inline const char* ratioName(DistressorRatio r) noexcept
+inline const char* ratioName(CompRatio r) noexcept
 {
     switch (r)
     {
-        case DistressorRatio::R1_1:       return "1:1";
-        case DistressorRatio::R2_1:       return "2:1";
-        case DistressorRatio::R3_1:       return "3:1";
-        case DistressorRatio::R4_1:       return "4:1";
-        case DistressorRatio::R6_1:       return "6:1";
-        case DistressorRatio::R10_1_Opto: return "10:1 OPTO";
-        case DistressorRatio::R20_1:      return "20:1";
-        case DistressorRatio::Nuke:
-        default:                          return "NUKE";
+        case CompRatio::R1_1:       return "1:1";
+        case CompRatio::R2_1:       return "2:1";
+        case CompRatio::R3_1:       return "3:1";
+        case CompRatio::R4_1:       return "4:1";
+        case CompRatio::R6_1:       return "6:1";
+        case CompRatio::R10_1_Opto: return "10:1 OPTO";
+        case CompRatio::R20_1:      return "20:1";
+        case CompRatio::Nuke:
+        default:                    return "NUKE";
     }
 }
 
-inline const char* audioModeName(DistressorAudioMode m) noexcept
+inline const char* audioModeName(CompAudioMode m) noexcept
 {
     switch (m)
     {
-        case DistressorAudioMode::Clean: return "CLEAN";
-        case DistressorAudioMode::Dist2: return "DIST 2";
-        case DistressorAudioMode::Dist3:
-        default:                         return "DIST 3";
+        case CompAudioMode::Clean: return "CLEAN";
+        case CompAudioMode::Dist2: return "DIST 2";
+        case CompAudioMode::Dist3:
+        default:                   return "DIST 3";
     }
 }
 
@@ -189,9 +189,9 @@ struct Meters
 };
 
 /**
- * TRI-COMP: 3-Band Distressor Tone-Sculpting Bass Compressor.
+ * TRI-COMP: 3-Band Tone-Sculpting Bass Compressor.
  * Zero-allocation realtime processor with LR4 phase-compensated 3-band crossover,
- * 3 independent DistressorBandCell dynamics + harmonic processors, cross-band
+ * 3 independent CompBandCell dynamics + harmonic processors, cross-band
  * sidechain linking, and lock-free pre/post SpectrumFifo.
  */
 class Processor
@@ -350,7 +350,7 @@ public:
 
 private:
     ThreeBandSplitter splitter;
-    std::array<DistressorBandCell, 3> cells;
+    std::array<CompBandCell, 3> cells;
     juce::SmoothedValue<float> inputGainSmooth{ 1.0f };
     juce::SmoothedValue<float> outputGainSmooth{ 1.0f };
     juce::SmoothedValue<float> mixSmooth{ 1.0f };

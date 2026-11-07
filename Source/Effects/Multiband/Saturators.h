@@ -54,7 +54,7 @@ struct OnePoleFilter
     }
 };
 
-enum class DistressorAudioMode : int
+enum class CompAudioMode : int
 {
     Clean = 0,
     Dist2 = 1,
@@ -62,13 +62,12 @@ enum class DistressorAudioMode : int
 };
 
 /**
- * Distressor-inspired harmonic stage (Clean / Dist 2 / Dist 3).
+ * TRI-COMP harmonic saturation stage (Clean / Dist 2 / Dist 3).
  *
- * On the EL8 hardware:
  * - Dist 2 emphasizes 2nd-order (even) tube-like harmonics, scaling with compression.
  * - Dist 3 emphasizes 3rd-order (odd) tape-like harmonics, flattening waveform peaks.
  */
-class DistressorHarmonics
+class CompHarmonics
 {
 public:
     void prepare(double sampleRate) noexcept
@@ -85,12 +84,12 @@ public:
         audioHpf2.reset();
     }
 
-    float process(float x, DistressorAudioMode mode, float currentGrDb, bool audioHighPass = false, float* harmonicMeterOut = nullptr) noexcept
+    float process(float x, CompAudioMode mode, float currentGrDb, bool audioHighPass = false, float* harmonicMeterOut = nullptr) noexcept
     {
         if (audioHighPass)
             x = audioHpf2.processHighpass(audioHpf1.processHighpass(x));
 
-        if (mode == DistressorAudioMode::Clean)
+        if (mode == CompAudioMode::Clean)
         {
             if (harmonicMeterOut) *harmonicMeterOut = 0.0f;
             return x;
@@ -98,7 +97,7 @@ public:
 
         // Harmonic intensity increases with gain reduction (0..18 dB) plus a base warmth floor.
         const float grFactor = juce::jlimit(0.0f, 1.5f, currentGrDb * 0.08f);
-        if (mode == DistressorAudioMode::Dist2)
+        if (mode == CompAudioMode::Dist2)
         {
             // Asymmetric transfer curve: y = x + k2 * x^2 followed by soft ceiling and DC blocker.
             // Produces dominant 2nd harmonic (even order) with minimal odd harmonics.
@@ -127,7 +126,7 @@ private:
 enum class DriveCharacter : int
 {
     Tube = 0,   // Warm asymmetric triode saturation
-    Grind = 1,  // Modern bass op-amp/diode grind (Darkglass / Parallax style)
+    Grind = 1,  // Modern bass op-amp/diode grind
     Fuzz = 2,   // Thick saturated bass fuzz
     Fizz = 3,   // High-band harmonic edge & clank exciter
     Nam = 4     // External/Factory NAM capture slot
@@ -174,7 +173,7 @@ public:
     {
         jassert(numSamples <= static_cast<int>(kMaxBlockSize));
         const float clampedDrive = juce::jlimit(0.0f, 1.0f, driveNorm);
-        // Even at minimum drive (0.0), Parallax-style stages retain a subtle trace of console/tube grit.
+        // Even at minimum drive (0.0), the drive stage retains a subtle trace of console/tube grit.
         const float targetGain = juce::Decibels::decibelsToGain(-2.0f + clampedDrive * 34.0f);
         driveSmooth.setTargetValue(targetGain);
 
@@ -210,7 +209,7 @@ private:
             }
             case DriveCharacter::Grind:
             {
-                // Pre-emphasis tightens low-mids before hard-knee op-amp/CMOS clipping (Parallax / B7K style).
+                // Pre-emphasis tightens low-mids before hard-knee op-amp/CMOS clipping.
                 const float tight = 0.35f * x + 0.65f * preHpf.processHighpass(x);
                 const float u = tight * gain * 1.35f;
                 const float hard = u / std::sqrt(1.0f + u * u);

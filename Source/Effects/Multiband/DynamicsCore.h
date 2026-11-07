@@ -6,7 +6,7 @@
 
 namespace tonegrid::multiband
 {
-enum class DistressorRatio : int
+enum class CompRatio : int
 {
     R1_1 = 0,
     R2_1 = 1,
@@ -33,30 +33,30 @@ struct RatioCurveSpec
     float thresholdOffsetDb = 0.0f;
 };
 
-constexpr RatioCurveSpec ratioSpec(DistressorRatio mode) noexcept
+constexpr RatioCurveSpec ratioSpec(CompRatio mode) noexcept
 {
     switch (mode)
     {
-        case DistressorRatio::R1_1:       return {  1.0f,  0.0f,  0.0f };
-        case DistressorRatio::R2_1:       return {  2.0f, 12.0f, -2.0f };
-        case DistressorRatio::R3_1:       return {  3.0f,  9.0f, -1.5f };
-        case DistressorRatio::R4_1:       return {  4.0f,  7.0f, -1.0f };
-        case DistressorRatio::R6_1:       return {  6.0f,  5.0f,  0.0f };
-        case DistressorRatio::R10_1_Opto: return { 10.0f,  8.0f, -2.5f };
-        case DistressorRatio::R20_1:      return { 20.0f,  2.5f,  1.0f };
-        case DistressorRatio::Nuke:
-        default:                          return { 60.0f,  1.5f, -4.0f };
+        case CompRatio::R1_1:       return {  1.0f,  0.0f,  0.0f };
+        case CompRatio::R2_1:       return {  2.0f, 12.0f, -2.0f };
+        case CompRatio::R3_1:       return {  3.0f,  9.0f, -1.5f };
+        case CompRatio::R4_1:       return {  4.0f,  7.0f, -1.0f };
+        case CompRatio::R6_1:       return {  6.0f,  5.0f,  0.0f };
+        case CompRatio::R10_1_Opto: return { 10.0f,  8.0f, -2.5f };
+        case CompRatio::R20_1:      return { 20.0f,  2.5f,  1.0f };
+        case CompRatio::Nuke:
+        default:                    return { 60.0f,  1.5f, -4.0f };
     }
 }
 
 /**
  * Pure static gain reduction computer (in positive dB of attenuation) for a given
- * input level in dBFS, threshold in dBFS, and DistressorRatio curve.
+ * input level in dBFS, threshold in dBFS, and CompRatio curve.
  * Exposed as a static method for deterministic curve unit tests.
  */
-inline float computeGainReductionDb(float levelDb, float baseThresholdDb, DistressorRatio mode) noexcept
+inline float computeGainReductionDb(float levelDb, float baseThresholdDb, CompRatio mode) noexcept
 {
-    if (mode == DistressorRatio::R1_1)
+    if (mode == CompRatio::R1_1)
         return 0.0f;
 
     const auto spec = ratioSpec(mode);
@@ -78,13 +78,13 @@ inline float computeGainReductionDb(float levelDb, float baseThresholdDb, Distre
 }
 
 /**
- * Single-band Distressor-inspired compressor cell with:
+ * Single-band TRI-COMP compressor cell with:
  * - Sidechain HPF (90 Hz) and Band Emphasis (mid/high peak detector tilt)
  * - 8 ratio modes (1:1 through NUKE, including 10:1 Opto)
  * - Program-dependent dual-stage release ballistics
  * - Integrated Dist 2 / Dist 3 harmonic generation stage
  */
-class DistressorBandCell
+class CompBandCell
 {
 public:
     void prepare(double newSampleRate) noexcept
@@ -116,7 +116,7 @@ public:
     // Separating detection from application allows cross-band linking in TRI-COMP.
     float detectGainReductionDb(float x,
                                 float baseThresholdDb,
-                                DistressorRatio ratio,
+                                CompRatio ratio,
                                 float attackMs,
                                 float releaseMs,
                                 DetectorMode detector) noexcept
@@ -138,13 +138,13 @@ public:
         const float clampedReleaseMs = juce::jlimit(30.0f, 3500.0f, releaseMs);
 
         // Opto mode (10:1) uses slower optical cell attack and program-dependent memory release.
-        const float effectiveAttackMs = (ratio == DistressorRatio::R10_1_Opto)
+        const float effectiveAttackMs = (ratio == CompRatio::R10_1_Opto)
                                             ? juce::jmax(2.5f, clampedAttackMs * 1.6f)
-                                            : (ratio == DistressorRatio::Nuke ? juce::jmin(clampedAttackMs, 1.5f) : clampedAttackMs);
+                                            : (ratio == CompRatio::Nuke ? juce::jmin(clampedAttackMs, 1.5f) : clampedAttackMs);
 
         const float attackCoeff = std::exp(-1.0f / static_cast<float>(sampleRate * effectiveAttackMs * 0.001));
         const float fastRelCoeff = std::exp(-1.0f / static_cast<float>(sampleRate * clampedReleaseMs * 0.001));
-        const float slowRelSeconds = (ratio == DistressorRatio::R10_1_Opto)
+        const float slowRelSeconds = (ratio == CompRatio::R10_1_Opto)
                                          ? juce::jmin(8.0f, clampedReleaseMs * 0.0045f * (1.0f + optoMemory * 2.5f))
                                          : clampedReleaseMs * 0.0025f;
         const float slowRelCoeff = std::exp(-1.0f / static_cast<float>(sampleRate * juce::jmax(0.08f, slowRelSeconds)));
@@ -163,7 +163,7 @@ public:
         }
 
         // Dual-release blend: sustained compression smoothly leans on the slower time constant.
-        const float pdWeight = (ratio == DistressorRatio::R10_1_Opto) ? 0.55f : 0.25f * optoMemory;
+        const float pdWeight = (ratio == CompRatio::R10_1_Opto) ? 0.55f : 0.25f * optoMemory;
         lastGrDb = (1.0f - pdWeight) * fastGrDb + pdWeight * slowGrDb;
         return lastGrDb;
     }
@@ -171,7 +171,7 @@ public:
     // Step 2 of 2: apply gain reduction (possibly linked across bands) + Dist 2/3 harmonics + band makeup.
     float applyGainAndHarmonics(float x,
                                 float effectiveGrDb,
-                                DistressorAudioMode audioMode,
+                                CompAudioMode audioMode,
                                 bool audioHighPass,
                                 float bandGainLinear) noexcept
     {
@@ -187,7 +187,7 @@ public:
 
 private:
     OnePoleFilter scHpf1, scHpf2, scEmphasisHpf, scEmphasisLpf;
-    DistressorHarmonics harmonics;
+    CompHarmonics harmonics;
     double sampleRate = 48000.0;
     float fastGrDb = 0.0f;
     float slowGrDb = 0.0f;
@@ -197,7 +197,7 @@ private:
 };
 
 /**
- * Parallax X-inspired single-knob Low-Band Bus Compressor for TRI-DRIVE.
+ * Single-knob Low-Band Bus Compressor for TRI-DRIVE.
  * Keeps the bass fundamental tight, punchy, and consistent while Mid and High
  * bands carry the saturation.
  */
@@ -244,7 +244,7 @@ public:
         // Threshold sweeps from -8 dBFS down to -36 dBFS at 4:1 ratio with auto-makeup.
         const float thresholdDb = -8.0f - norm * 28.0f;
         const float levelDb = juce::Decibels::gainToDecibels(std::abs(filtered), -100.0f);
-        const float targetGrDb = computeGainReductionDb(levelDb, thresholdDb, DistressorRatio::R4_1);
+        const float targetGrDb = computeGainReductionDb(levelDb, thresholdDb, CompRatio::R4_1);
 
         const float c = (targetGrDb > envDb) ? attackCoeff : releaseCoeff;
         envDb = c * envDb + (1.0f - c) * targetGrDb;

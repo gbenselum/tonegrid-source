@@ -201,8 +201,7 @@ private:
 } // namespace detail
 
 /**
- * Interactive real-time FFT Spectrum + 3-Band Crossover & Level Handle Canvas
- * inspired by Neural DSP Parallax X.
+ * Interactive real-time FFT Spectrum + 3-Band Crossover & Level Handle Canvas.
  *
  * Users can:
  * - Drag the vertical Low/Mid (f1) and Mid/High (f2) crossover lines horizontally
@@ -599,7 +598,7 @@ private:
 };
 
 /**
- * Full Parallax X / Distressor-inspired Editor Popup for TRI-COMP and TRI-DRIVE.
+ * Full Editor Popup for TRI-COMP and TRI-DRIVE.
  * Features the large InteractiveSpectrumCanvas on the upper half and the 3-band
  * parameter strips + global controls on the lower half.
  */
@@ -678,9 +677,9 @@ public:
                 auto& col = compColumns[b];
                 const auto bCol = detail::bandColour(static_cast<int>(b));
                 for (int r = 0; r < 8; ++r)
-                    col.ratioBox.addItem(triComp::ratioName(static_cast<multiband::DistressorRatio>(r)), r + 1);
+                    col.ratioBox.addItem(triComp::ratioName(static_cast<multiband::CompRatio>(r)), r + 1);
                 for (int a = 0; a < 3; ++a)
-                    col.audioBox.addItem(triComp::audioModeName(static_cast<multiband::DistressorAudioMode>(a)), a + 1);
+                    col.audioBox.addItem(triComp::audioModeName(static_cast<multiband::CompAudioMode>(a)), a + 1);
                 for (int d = 0; d < 4; ++d)
                     col.detectorBox.addItem(triComp::detectorModeName(static_cast<multiband::DetectorMode>(d)), d + 1);
 
@@ -876,7 +875,7 @@ public:
 
         g.setFont(ui::font(17.5f, true));
         g.setColour(unit == BassRackUnit::TriComp ? juce::Colour(0xff29b6f6) : juce::Colour(0xffff8a3d));
-        g.drawText(unit == BassRackUnit::TriComp ? "TRI-COMP // 3-BAND DISTRESSOR" : "TRI-DRIVE // 3-BAND PARALLAX ENGINE",
+        g.drawText(unit == BassRackUnit::TriComp ? "TRI-COMP // 3-BAND COMPRESSOR" : "TRI-DRIVE // 3-BAND DISTORTION",
                    16, 11, 335, 30, juce::Justification::centredLeft);
 
         // Header trim knob labels
@@ -1081,8 +1080,8 @@ private:
             {
                 const auto& col = compColumns[b];
                 auto& bp = p.bands[b];
-                bp.ratio = static_cast<multiband::DistressorRatio>(juce::jlimit(0, 7, col.ratioBox.getSelectedId() - 1));
-                bp.audioMode = static_cast<multiband::DistressorAudioMode>(juce::jlimit(0, 2, col.audioBox.getSelectedId() - 1));
+                bp.ratio = static_cast<multiband::CompRatio>(juce::jlimit(0, 7, col.ratioBox.getSelectedId() - 1));
+                bp.audioMode = static_cast<multiband::CompAudioMode>(juce::jlimit(0, 2, col.audioBox.getSelectedId() - 1));
                 bp.detectorMode = static_cast<multiband::DetectorMode>(juce::jlimit(0, 3, col.detectorBox.getSelectedId() - 1));
                 bp.attackMs = static_cast<float>(col.attackKnob.getValue());
                 bp.releaseMs = static_cast<float>(col.releaseKnob.getValue());
@@ -1168,7 +1167,7 @@ private:
  * Wide Pedalboard Summary Card for TRI-COMP or TRI-DRIVE on the Bass Pedalboard.
  * Shows live mini spectrum + 3-band crossover preview, per-band GR/drive meters,
  * quick macro knobs, bypass footswitch, preset selector, and a "SPECTRUM & BANDS"
- * button that launches the full-size Parallax X-style interactive spectrum analyzer.
+ * button that launches the full-size interactive spectrum analyzer.
  */
 class BassRackCard final : public juce::Component
 {
@@ -1329,7 +1328,7 @@ public:
 
         g.setFont(ui::font(10.0f, true));
         g.setColour(accent);
-        g.drawText(isComp ? "3-BAND DISTRESSOR" : "3-BAND PARALLAX DRIVE", 36, 26, 195, 14, juce::Justification::centredLeft);
+        g.drawText(isComp ? "3-BAND COMPRESSOR" : "3-BAND DISTORTION", 36, 26, 195, 14, juce::Justification::centredLeft);
 
         // Mini Crossover & Band GR/Drive Display
         const auto display = displayBounds().toFloat();

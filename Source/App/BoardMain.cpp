@@ -225,7 +225,7 @@ public:
         playTab.setComponentID("mode-play");jamTab.setComponentID("mode-jam");playTab.setToggleState(true,dontSendNotification);
         learnTab.setComponentID("mode-learn");playTab.onClick=[this]{setMode(0);};jamTab.onClick=[this]{setMode(1);};learnTab.onClick=[this]{setMode(2);};recordTab.onClick=[this]{setMode(3);};recordTab.setComponentID("mode-record");
         bassModeToggle.setComponentID("instrument-mode-toggle");bassModeToggle.setLookAndFeel(&ampLook);bassModeToggle.setClickingTogglesState(true);
-        bassModeToggle.setTooltip("Switch between Guitar mode (13 stompboxes) and Bass mode (TRI-COMP 3-Band Distressor + TRI-DRIVE 3-Band Parallax Distortion + Bass Stompboxes).");
+        bassModeToggle.setTooltip("Switch between Guitar mode (13 stompboxes) and Bass mode (TRI-COMP 3-Band Compressor + TRI-DRIVE 3-Band Distortion + Bass Stompboxes).");
         bassModeToggle.onClick=[this]{setInstrumentMode(bassModeToggle.getToggleState()?tonegrid::InstrumentMode::Bass:tonegrid::InstrumentMode::Guitar);};
         initialiseRecordModule();
         jamView.configurePlayer(appPaths.user().getChildFile("JAM/WebView2"),!hardwareEnabled&&!liveValidationBrowsers);
@@ -328,8 +328,8 @@ public:
             [safe](int bandIdx) { if (safe) safe->chooseBandNamCapture(bandIdx); },
             [safe] { if (safe) safe->chooseTriDriveCabIr(); });
         const String title = (unit == tonegrid::play::BassRackUnit::TriComp)
-                                 ? "TRI-COMP // 3-Band Distressor Compressor"
-                                 : "TRI-DRIVE // 3-Band Parallax Distortion";
+                                 ? "TRI-COMP // 3-Band Compressor"
+                                 : "TRI-DRIVE // 3-Band Distortion";
         bassRackDialog = tonegrid::popup::launch(title, *editor, *this, true, 520);
     }
     void chooseBandNamCapture(int bandIdx)

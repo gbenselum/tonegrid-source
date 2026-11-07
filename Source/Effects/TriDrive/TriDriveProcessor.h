@@ -88,7 +88,7 @@ struct PresetSpec
 };
 
 inline constexpr std::array<PresetSpec, 8> kPresets{{
-    { "01 Modern Parallax Clank",
+    { "01 Modern Clank",
       Parameters{ false, 0,  0.0f, 0.0f, 1.0f, 150.0f, 1800.0f,
                   6.0f, 210.0f,  1.5f, false, false,
                   DriveCharacter::Grind, 6.2f,  1.5f,  0.5f, false, false,
@@ -319,7 +319,7 @@ private:
 };
 
 /**
- * TRI-DRIVE: 3-Band Parallax X-Inspired Bass Distortion & NAM-in-Band Processor.
+ * TRI-DRIVE: 3-Band Bass Distortion & NAM-in-Band Processor.
  *
  * Signal flow:
  * 1. Input gain -> Phase-compensated LR4 3-band splitter (Low, Mid, High)

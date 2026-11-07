@@ -70,19 +70,19 @@ inline bool run(const juce::File& models, juce::String& report)
     // -------------------------------------------------------------------------
     {
         using namespace tonegrid::multiband;
-        const float gr1 = computeGainReductionDb(-6.0f, -24.0f, DistressorRatio::R1_1);
-        const float gr2 = computeGainReductionDb(-6.0f, -24.0f, DistressorRatio::R2_1);
-        const float gr4 = computeGainReductionDb(-6.0f, -24.0f, DistressorRatio::R4_1);
-        const float gr10 = computeGainReductionDb(-6.0f, -24.0f, DistressorRatio::R10_1_Opto);
-        const float gr20 = computeGainReductionDb(-6.0f, -24.0f, DistressorRatio::R20_1);
-        const float grNuke = computeGainReductionDb(-6.0f, -24.0f, DistressorRatio::Nuke);
+        const float gr1 = computeGainReductionDb(-6.0f, -24.0f, CompRatio::R1_1);
+        const float gr2 = computeGainReductionDb(-6.0f, -24.0f, CompRatio::R2_1);
+        const float gr4 = computeGainReductionDb(-6.0f, -24.0f, CompRatio::R4_1);
+        const float gr10 = computeGainReductionDb(-6.0f, -24.0f, CompRatio::R10_1_Opto);
+        const float gr20 = computeGainReductionDb(-6.0f, -24.0f, CompRatio::R20_1);
+        const float grNuke = computeGainReductionDb(-6.0f, -24.0f, CompRatio::Nuke);
 
         check(std::abs(gr1) < 1.0e-5f, "TRI-COMP 1:1 ratio produces exactly 0.0 dB gain reduction (harmonic warmth mode)");
         check(gr2 > 4.0f && gr4 > gr2 && gr10 > gr4 && grNuke > gr20,
               "TRI-COMP gain reduction increases across 2:1 -> 4:1 -> 10:1 Opto -> NUKE");
 
         // Verify Dist 2 (even H2 asymmetry) vs Dist 3 (odd H3 symmetry)
-        DistressorHarmonics dist2Harm, dist3Harm;
+        CompHarmonics dist2Harm, dist3Harm;
         dist2Harm.prepare(48000.0);
         dist3Harm.prepare(48000.0);
 
@@ -90,8 +90,8 @@ inline bool run(const juce::File& models, juce::String& report)
         for (int n = 0; n < 4800; ++n)
         {
             const float s = 0.7f * std::sin(2.0f * MathConstants<float>::pi * 100.0f * (float)n / 48000.0f);
-            const float y2 = dist2Harm.process(s, DistressorAudioMode::Dist2, 6.0f);
-            const float y3 = dist3Harm.process(s, DistressorAudioMode::Dist3, 6.0f);
+            const float y2 = dist2Harm.process(s, CompAudioMode::Dist2, 6.0f);
+            const float y3 = dist3Harm.process(s, CompAudioMode::Dist3, 6.0f);
             diff2 += std::abs(y2 - s);
             diff3 += std::abs(y3 - s);
             diff2vs3 += std::abs(y2 - y3);
@@ -104,8 +104,8 @@ inline bool run(const juce::File& models, juce::String& report)
         auto pUnlinked = tonegrid::triComp::presetDefaults(0, true);
         pUnlinked.linkAmount = 0.0f;
         pUnlinked.inputDb = 14.0f;
-        pUnlinked.bands[0].ratio = DistressorRatio::R10_1_Opto;
-        pUnlinked.bands[2].ratio = DistressorRatio::R10_1_Opto;
+        pUnlinked.bands[0].ratio = CompRatio::R10_1_Opto;
+        pUnlinked.bands[2].ratio = CompRatio::R10_1_Opto;
 
         auto pLinked = pUnlinked;
         pLinked.linkAmount = 1.0f;
@@ -324,15 +324,15 @@ inline bool run(const juce::File& models, juce::String& report)
             plugin.version = "1.0";
 
             board::State origState;
-            origState.name = "Parallax Distressor Rig";
+            origState.name = "TriComp TriDrive Rig";
             origState.amp.append("synthetic-only", 14);
             origState.instrumentMode = tonegrid::InstrumentMode::Bass;
             origState.rackOrder = tonegrid::BassRackOrder::DriveThenComp;
             origState.triComp = tonegrid::triComp::presetDefaults(3, true);
             origState.triComp.lowMidHz = 145.0f;
             origState.triComp.midHighHz = 1950.0f;
-            origState.triComp.bands[0].ratio = tonegrid::multiband::DistressorRatio::Nuke;
-            origState.triComp.bands[1].audioMode = tonegrid::multiband::DistressorAudioMode::Dist2;
+            origState.triComp.bands[0].ratio = tonegrid::multiband::CompRatio::Nuke;
+            origState.triComp.bands[1].audioMode = tonegrid::multiband::CompAudioMode::Dist2;
             origState.triDrive = tonegrid::triDrive::presetDefaults(2, true);
             origState.triDrive.midDrive = 8.5f;
             origState.triDrive.highCharacter = tonegrid::multiband::DriveCharacter::Fizz;
@@ -350,8 +350,8 @@ inline bool run(const juce::File& models, juce::String& report)
                   && decodedState.triComp.enabled == origState.triComp.enabled
                   && std::abs(decodedState.triComp.lowMidHz - 145.0f) < 1.0e-3f
                   && std::abs(decodedState.triComp.midHighHz - 1950.0f) < 1.0e-3f
-                  && decodedState.triComp.bands[0].ratio == tonegrid::multiband::DistressorRatio::Nuke
-                  && decodedState.triComp.bands[1].audioMode == tonegrid::multiband::DistressorAudioMode::Dist2
+                  && decodedState.triComp.bands[0].ratio == tonegrid::multiband::CompRatio::Nuke
+                  && decodedState.triComp.bands[1].audioMode == tonegrid::multiband::CompAudioMode::Dist2
                   && decodedState.triDrive.enabled == origState.triDrive.enabled
                   && std::abs(decodedState.triDrive.midDrive - 8.5f) < 1.0e-3f
                   && decodedState.triDrive.highCharacter == tonegrid::multiband::DriveCharacter::Fizz,
