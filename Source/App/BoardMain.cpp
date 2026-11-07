@@ -221,9 +221,13 @@ public:
         showLog.onClick=[this]{logVisible=!logVisible;log.setVisible(logVisible);showLog.setButtonText(logVisible?"Hide Log":"Show Log");resized();};
         addAndMakeVisible(sendDiagnostic);sendDiagnostic.setComponentID("send-diagnostic");sendDiagnostic.setTooltip("Prepare an email with troubleshooting information. You review and send it yourself.");sendDiagnostic.onClick=[this]{showDiagnostic();};
         learn.onClear=[this]{if(selected()<rig::slotCount)clearBinding(selected());};learn.setTooltip("Assign MIDI to this preset. Right-click to clear its assignment.");gateToggle.setTitle("Noise gate ON/OFF");
-        addAndMakeVisible(playTab);addAndMakeVisible(jamTab);addAndMakeVisible(learnTab);addAndMakeVisible(recordTab);addAndMakeVisible(playModuleSurface);addChildComponent(jamView);addChildComponent(learnView);
+        addAndMakeVisible(playTab);addAndMakeVisible(jamTab);addAndMakeVisible(learnTab);addAndMakeVisible(recordTab);addAndMakeVisible(bassModeToggle);addAndMakeVisible(playModuleSurface);addChildComponent(jamView);addChildComponent(learnView);
         playTab.setComponentID("mode-play");jamTab.setComponentID("mode-jam");playTab.setToggleState(true,dontSendNotification);
-        learnTab.setComponentID("mode-learn");playTab.onClick=[this]{setMode(0);};jamTab.onClick=[this]{setMode(1);};learnTab.onClick=[this]{setMode(2);};recordTab.onClick=[this]{setMode(3);};recordTab.setComponentID("mode-record");initialiseRecordModule();
+        learnTab.setComponentID("mode-learn");playTab.onClick=[this]{setMode(0);};jamTab.onClick=[this]{setMode(1);};learnTab.onClick=[this]{setMode(2);};recordTab.onClick=[this]{setMode(3);};recordTab.setComponentID("mode-record");
+        bassModeToggle.setComponentID("instrument-mode-toggle");bassModeToggle.setLookAndFeel(&ampLook);bassModeToggle.setClickingTogglesState(true);
+        bassModeToggle.setTooltip("Switch between Guitar mode (13 stompboxes) and Bass mode (TRI-COMP 3-Band Distressor + TRI-DRIVE 3-Band Parallax Distortion + Bass Stompboxes).");
+        bassModeToggle.onClick=[this]{setInstrumentMode(bassModeToggle.getToggleState()?tonegrid::InstrumentMode::Bass:tonegrid::InstrumentMode::Guitar);};
+        initialiseRecordModule();
         jamView.configurePlayer(appPaths.user().getChildFile("JAM/WebView2"),!hardwareEnabled&&!liveValidationBrowsers);
         jamView.setCatalogueFile(appPaths.resources().getChildFile("Jam/backing-tracks.json"));jamView.setCatalogueOverride(appPaths.jamCatalogue());
         learnView.configure(appPaths.resources().getChildFile("Learn/lessons.json"),appPaths.user().getChildFile("LEARN/favourites.json"),appPaths.user().getChildFile("LEARN/WebView2"),!hardwareEnabled&&!liveValidationBrowsers);learnView.setCatalogueOverride(appPaths.learnCatalogue());
@@ -255,8 +259,9 @@ public:
         setLookAndFeel(nullptr);
         persistSelection(); // Flush current amp EQ/session settings before releasing the graph.
         persistAudioSettings(); // Flush pending device choices even if Settings is still open.
-        stopTimer();if(contentValidation.valid())contentValidation.wait();delete contentSettingsDialog.getComponent();cabinetOnlineWindow.reset();if(cabinetRefreshing.valid())cabinetRefreshing.wait();delete cabinetDialog.getComponent();delete cabinetRecommendationDialog.getComponent();if(cabinetLoading.valid())cabinetLoading.wait();delete diagnosticDialog.getComponent();delete welcomeDialog.getComponent();delete calibrationDialog.getComponent();delete calibrationWarningDialog.getComponent();onlineUpdates.stop();delete updateDialog.getComponent();tunerControls.close();delete tunerDialog.getComponent();tone3000Window.reset();pedalTone3000Window.reset();delete ampEqDialog.getComponent();delete pedalImportDialog.getComponent();delete pedalDeleteDialog.getComponent();delete shareConfirmDialog.getComponent();delete shareDialog.getComponent(); if(midi) midi->stop(); midi.reset(); delete audioDialog.getComponent();delete spreadDialog.getComponent();delete reverbDialog.getComponent();delete pitchDialog.getComponent();delete modDialog.getComponent();delete delayDialog.getComponent();delete namBrowserDialog.getComponent();delete presetDialog.getComponent();
+        stopTimer();if(contentValidation.valid())contentValidation.wait();delete contentSettingsDialog.getComponent();cabinetOnlineWindow.reset();if(cabinetRefreshing.valid())cabinetRefreshing.wait();delete cabinetDialog.getComponent();delete cabinetRecommendationDialog.getComponent();if(cabinetLoading.valid())cabinetLoading.wait();delete diagnosticDialog.getComponent();delete welcomeDialog.getComponent();delete calibrationDialog.getComponent();delete calibrationWarningDialog.getComponent();onlineUpdates.stop();delete updateDialog.getComponent();tunerControls.close();delete tunerDialog.getComponent();tone3000Window.reset();pedalTone3000Window.reset();delete ampEqDialog.getComponent();delete bassRackDialog.getComponent();delete pedalImportDialog.getComponent();delete pedalDeleteDialog.getComponent();delete shareConfirmDialog.getComponent();delete shareDialog.getComponent(); if(midi) midi->stop(); midi.reset(); delete audioDialog.getComponent();delete spreadDialog.getComponent();delete reverbDialog.getComponent();delete pitchDialog.getComponent();delete modDialog.getComponent();delete delayDialog.getComponent();delete namBrowserDialog.getComponent();delete presetDialog.getComponent();
         devices.removeChangeListener(this);devices.removeAudioCallback(&audioTap); player.setProcessor(nullptr); if(ampSource)ampSource->closeEditor();
+        playModule.contentView().triCompCard.reset();playModule.contentView().triDriveCard.reset();
         for(auto& c:cards)c.reset(); if(ampSource)ampSource->unload(); graph.clear(); devices.closeAudioDevice();
         if(loading.valid()) loading.wait();
         if(userLibraryScan.valid())userLibraryScan.wait();if(userLibraryOperation.valid())userLibraryOperation.wait();
@@ -288,12 +293,92 @@ public:
 #include "App/CalibrationHost.inl"
     bool calibration117Ready() const{return ready();}
     void forceSafeStartupForTest(){startupPresetPending=true;starterBootstrapPending=false;}
+    void setInstrumentMode(tonegrid::InstrumentMode mode)
+    {
+        const bool bass = tonegrid::isBass(mode);
+        bassModeToggle.setToggleState(bass, dontSendNotification);
+        bassModeToggle.setButtonText(bass ? "MODE: BASS" : "MODE: GUITAR");
+        if (pedals)
+            pedals->setInstrumentMode(mode);
+        playModule.contentView().setInstrumentMode(mode, activeModuleIndex == 0);
+        for (auto& c : cards) if (c) c->sync();
+        if (playModule.contentView().triCompCard) playModule.contentView().triCompCard->sync();
+        if (playModule.contentView().triDriveCard) playModule.contentView().triDriveCard->sync();
+        resized();
+        repaint();
+    }
+    tonegrid::InstrumentMode instrumentMode() const noexcept
+    {
+        return pedals ? pedals->instrumentMode() : (bassModeToggle.getToggleState() ? tonegrid::InstrumentMode::Bass : tonegrid::InstrumentMode::Guitar);
+    }
+    void showBassRackEditor(tonegrid::play::BassRackUnit unit)
+    {
+        if (!pedals) return;
+        delete bassRackDialog.getComponent();
+        auto safe = Component::SafePointer<RigHost>(this);
+        auto* editor = new tonegrid::play::BassRackEditorView(
+            *pedals,
+            unit,
+            [safe]
+            {
+                if (!safe) return;
+                if (safe->playModule.contentView().triCompCard) safe->playModule.contentView().triCompCard->sync();
+                if (safe->playModule.contentView().triDriveCard) safe->playModule.contentView().triDriveCard->sync();
+            },
+            [safe](int bandIdx) { if (safe) safe->chooseBandNamCapture(bandIdx); },
+            [safe] { if (safe) safe->chooseTriDriveCabIr(); });
+        const String title = (unit == tonegrid::play::BassRackUnit::TriComp)
+                                 ? "TRI-COMP // 3-Band Distressor Compressor"
+                                 : "TRI-DRIVE // 3-Band Parallax Distortion";
+        bassRackDialog = tonegrid::popup::launch(title, *editor, *this, true, 520);
+    }
+    void chooseBandNamCapture(int bandIdx)
+    {
+        if (!pedals) return;
+        bassRackChooser = std::make_unique<FileChooser>("Select a 48 kHz mono .nam capture for TRI-DRIVE", namLibrary.folder(), "*.nam");
+        bassRackChooser->launchAsync(FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
+            [safe = Component::SafePointer<RigHost>(this), bandIdx](const FileChooser& fc)
+            {
+                if (!safe || !safe->pedals) return;
+                const auto f = fc.getResult();
+                if (!f.existsAsFile()) return;
+                auto prepared = tonegrid::userpedals::prepare(f, safe->namLite, SHA256(f).toHexString());
+                if (prepared.result.failed()) { safe->report(prepared.result.getErrorMessage()); return; }
+                prepared.model.file = f.getFullPathName();
+                prepared.model.label = f.getFileNameWithoutExtension();
+                safe->player.setProcessor(nullptr);
+                safe->pedals->triDriveProcessor().installBandNam(bandIdx, std::move(prepared.model));
+                auto td = safe->pedals->getTriDrive();
+                if (bandIdx == 0) td.midCharacter = tonegrid::multiband::DriveCharacter::Nam;
+                else td.highCharacter = tonegrid::multiband::DriveCharacter::Nam;
+                safe->pedals->setTriDrive(td);
+                safe->attach();
+                if (safe->playModule.contentView().triDriveCard) safe->playModule.contentView().triDriveCard->sync();
+            });
+    }
+    void chooseTriDriveCabIr()
+    {
+        if (!pedals) return;
+        bassRackChooser = std::make_unique<FileChooser>("Select a Cabinet IR (.wav) for TRI-DRIVE Mid+High", cabinetLibrary.root, "*.wav");
+        bassRackChooser->launchAsync(FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
+            [safe = Component::SafePointer<RigHost>(this)](const FileChooser& fc)
+            {
+                if (!safe || !safe->pedals) return;
+                const auto f = fc.getResult();
+                if (!f.existsAsFile()) return;
+                safe->player.setProcessor(nullptr);
+                const auto res = safe->pedals->triDriveProcessor().loadCabIrFromFile(f);
+                safe->attach();
+                if (res.failed()) safe->report(res.getErrorMessage());
+                if (safe->playModule.contentView().triDriveCard) safe->playModule.contentView().triDriveCard->sync();
+            });
+    }
     void paint(Graphics& g) override
     {
         g.setGradientFill(ColourGradient(Colour(0xff18232a),0,0,Colour(0xff04090d),(float)getWidth(),(float)getHeight(),false));g.fillAll();
 
         const auto metrics=tonegrid::ui::toolbarMetrics(getWidth()-2*tonegrid::ui::windowInset-tonegrid::ui::logoWidth-tonegrid::ui::logoGap);
-        const StringArray headings {"AMP / SOURCE","PRESET","GUITAR IN","NOISE GATE","AUDIO","MIDI","PITCH"};
+        const StringArray headings {"AMP / SOURCE","PRESET",tonegrid::isBass(instrumentMode())?"BASS IN":"GUITAR IN","NOISE GATE","AUDIO","MIDI","PITCH"};
         for(int i=1;i<7;++i){g.setFont(tonegrid::ui::sectionFont());g.setColour(tonegrid::ui::secondaryInk());g.drawText(headings[i],i==2?Rectangle<int>(guitarIn.getX(),sections[2].getY()+4,guitarIn.getWidth(),18):sections[(size_t)i].reduced(metrics.padding,4).removeFromTop(18),i==2?Justification::centred:Justification::centredLeft);if(i!=5){g.setColour(tonegrid::ui::separator().withAlpha(tonegrid::ui::separatorOpacity));g.fillRect(sections[(size_t)i].getRight()+metrics.sectionSpacing/2,sections[(size_t)i].getY()+8,1,60);}}
         tonegrid::ampui::paintChassis(g,sections[0],displayedSource==amp::SourceType::Nam);
 
@@ -306,6 +391,7 @@ public:
         const auto toolbar=tonegrid::ui::toolbarSections(header);
         for(int i=1;i<4;++i)sections[(size_t)i]=toolbar[(size_t)i-1];sections[6]=toolbar[3];sections[4]=toolbar[4];sections[5]=toolbar[5];logo.setBounds(tonegrid::ui::windowInset,tonegrid::ui::windowInset,tonegrid::ui::logoWidth,tonegrid::ui::headerHeight-26);
         playTab.setBounds(tonegrid::ui::windowInset+4,tonegrid::ui::windowInset+tonegrid::ui::headerHeight-26,52,24);jamTab.setBounds(playTab.getRight()+4,playTab.getY(),52,24);learnTab.setBounds(jamTab.getRight()+4,playTab.getY(),56,24);recordTab.setBounds(learnTab.getRight()+4,playTab.getY(),70,24);
+        bassModeToggle.setBounds(recordTab.getRight()+8,playTab.getY(),96,24);
         b.removeFromTop(tonegrid::ui::boardTopGap);auto footer=b.removeFromBottom(logVisible?88:32);auto stat=footer.removeFromTop(30);showLog.setBounds(stat.removeFromRight(94));sendDiagnostic.setBounds(stat.removeFromRight(138).reduced(2));const int logWidth=jmax(170,jmin(stat.getWidth()/4,stat.getWidth()-600-138-170));latestLog.setBounds(stat.removeFromRight(logWidth));checkUpdate.setBounds(stat.removeFromRight(138).reduced(2));versionLabel.setBounds(stat.removeFromRight(170));status.setBounds(stat);log.setBounds(footer);
         const auto recordWorkspace=b;b.removeFromBottom(8);sections[0]=b.removeFromBottom(tonegrid::ampui::compactHeight(b.getWidth()));b.removeFromBottom(10);
         auto inner=[this,&metrics](int i){return sections[(size_t)i].reduced(metrics.padding,4).withTrimmedTop(18);};
@@ -342,7 +428,8 @@ private:
         activeModuleIndex=mode;jamActive=mode==1;learnActive=mode==2;recordActive=mode==3;
         if(recordActive){recorder.stop();}
         playTab.setToggleState(mode==0,dontSendNotification);jamTab.setToggleState(jamActive,dontSendNotification);learnTab.setToggleState(learnActive,dontSendNotification);recordTab.setToggleState(recordActive,dontSendNotification);
-        for(auto& card:cards)if(card)card->setVisible(mode==0);recordingControls.setVisible(mode==0);loopControls.setVisible(mode==0);
+        playModule.contentView().setInstrumentMode(instrumentMode(), mode==0);
+        recordingControls.setVisible(mode==0);loopControls.setVisible(mode==0);
         for(size_t n=0;n<modules.size();++n)if(modules[n])modules[n]->view().setVisible(int(n)==mode);
         if(modules[size_t(mode)]){modules[size_t(mode)]->activated();if(mode==3)modules[size_t(mode)]->view().toFront(false);}resized();repaint();
     }
@@ -371,7 +458,7 @@ private:
     tonegrid::output::NormalizationNode* normalizationNode=nullptr;tonegrid::output::SpreadNode* spreadNode=nullptr;tonegrid::output::ReverbNode* reverbNode=nullptr;
     tonegrid::output::Settings outputSettings=tonegrid::output::freshSessionSettings();
     tonegrid::output::ModNode* modNode=nullptr;tonegrid::output::DelayNode* delayNode=nullptr;
-    tonegrid::Logo logo;tonegrid::jam::Tab playTab{"PLAY"},jamTab{"JAM"},learnTab{"LEARN"},recordTab{"RECORD"};tonegrid::modules::JamModule jamModule;tonegrid::modules::LearnModule learnModule;
+    tonegrid::Logo logo;tonegrid::jam::Tab playTab{"PLAY"},jamTab{"JAM"},learnTab{"LEARN"},recordTab{"RECORD"};tonegrid::l10n::TextButton bassModeToggle{"MODE: GUITAR"};tonegrid::modules::JamModule jamModule;tonegrid::modules::LearnModule learnModule;
     tonegrid::jam::View& jamView=jamModule.contentView();tonegrid::learn::View& learnView=learnModule.contentView();bool jamActive=false,learnActive=false,recordActive=false;
     Component& playModuleSurface=playModule.view();
     std::unique_ptr<tonegrid::record::RecordModule> recordModule;
@@ -400,7 +487,8 @@ private:
     tonegrid::CompactLogLabel latestLog;Label captureHeading,namFilename,namFolderName;tonegrid::ampui::Thumbnail thumbnail;
     tonegrid::l10n::TextButton namSourceButton{"NAM"},vstSourceButton{"VST"};tonegrid::libraryui::GearCard ampPanel{"Amp"};tonegrid::libraryui::ArtworkButton& namFolder=ampPanel.browse;
     tonegrid::ampui::AdvancedEqControls ampEqControls;tonegrid::ampui::EqButton ampEqGear;
-    Component::SafePointer<DialogWindow> ampEqDialog,pedalImportDialog,shareConfirmDialog,shareDialog;
+    Component::SafePointer<DialogWindow> ampEqDialog,bassRackDialog,pedalImportDialog,shareConfirmDialog,shareDialog;
+    std::unique_ptr<FileChooser> bassRackChooser;
     const tonegrid::userpedals::Library userPedals{appPaths.user().getChildFile("NAM/Pedals")};
     std::future<bool> userLibraryScan;std::future<Result> userLibraryOperation;int userLibraryTicks=0;String librarySuccess;
     Component::SafePointer<DialogWindow> pedalDeleteDialog;
@@ -1121,6 +1209,7 @@ private:
     void saveSlot()
     {
         if(!ready())return;board::State s;s.presetId=currentPresetId;s.extensionXml=currentPresetExtensions;s.input=pedals->front.get();s.name=name.getText().trim();if(s.name.isEmpty()){report("Enter a rig name before saving.");return;}
+        s.instrumentMode=pedals->instrumentMode();s.rackOrder=pedals->rackOrder();s.triComp=pedals->getTriComp();s.triDrive=pedals->getTriDrive();s.triDriveAssets=pedals->triDriveProcessor().assetState();
         s.sourceType=ampSource->type();if(s.sourceType==amp::SourceType::Nam)s.cabinet=cabinetState;s.genericVst3=s.sourceType==amp::SourceType::Vst3;
         s.outputDsp=outputSettings;s.outputDsp->expandedEffects=true;
         player.setProcessor(nullptr);
@@ -1184,7 +1273,10 @@ private:
             if(result.failed()){if(recoveryFailed)audioFault=true;attach();if(reopen)showEditor();report(result.getErrorMessage()+" Pedalboard unchanged.");return false;}
         }
         for(int p=0;p<board::count;++p)if(s.customPedalHashes[size_t(p)].isNotEmpty())pedals->installCustom(p,std::move(customModels[size_t(p)].model));
-        for(int p=0;p<board::count;++p)pedals->set(p,s.pedals[(size_t)p]);pedals->front.set(s.input);syncInput();for(auto& card:cards)if(card)card->sync();
+        for(int p=0;p<board::count;++p)pedals->set(p,s.pedals[(size_t)p]);pedals->front.set(s.input);
+        pedals->setInstrumentMode(s.instrumentMode);pedals->setRackOrder(s.rackOrder);pedals->setTriComp(s.triComp);pedals->setTriDrive(s.triDrive);
+        setInstrumentMode(s.instrumentMode);
+        syncInput();for(auto& card:cards)if(card)card->sync();
         if(s.cabinet){cabinetState=*s.cabinet;if(recalledCabinet)installCabinet(std::move(*recalledCabinet),false);}
         currentPresetId=s.presetId;currentPresetExtensions=s.extensionXml;
         outputSettings=s.outputDsp.value_or(tonegrid::output::legacySettings());syncOutputUi();
@@ -1274,7 +1366,12 @@ private:
             guitarIn.advance(sections[2].expanded(7,4).contains(mouse),motionDt);
             gateThreshold.advance(sections[3].expanded(7,4).contains(mouse),motionDt);
             for(auto* tab:{&playTab,&jamTab,&learnTab})tab->animate(motionTime);
-            if(!jamActive&&!learnActive&&!recordActive)for(auto& card:cards)if(card)card->animate(motionTime);
+            if(!jamActive&&!learnActive&&!recordActive)
+            {
+                for(auto& card:cards)if(card&&card->isVisible())card->animate(motionTime);
+                if(playModule.contentView().triCompCard&&playModule.contentView().triCompCard->isVisible())playModule.contentView().triCompCard->animate();
+                if(playModule.contentView().triDriveCard&&playModule.contentView().triDriveCard->isVisible())playModule.contentView().triDriveCard->animate();
+            }
         }
         recordingControls.setAudioAvailable(player.getCurrentProcessor()!=nullptr&&devices.getCurrentAudioDevice()!=nullptr);
         const auto recordingMessage=recorder.takeMessage();if(recordingMessage.isNotEmpty())report(recordingMessage);
@@ -1326,7 +1423,15 @@ private:
             else
             {
                 pendingBoard=std::move(r.processor);pedals=pendingBoard.get();if(r.lite!=namLite)pedals->setNamLite(namLite);pedals->setCalibration(calibrationSettings);
-                for(int v=0;v<board::count;++v){auto& c=cards[(size_t)v];c=std::make_unique<PedalCard>(v,*pedals);int p=PedalCard::engineFor(v);if(p>=0){c->onLearn=[this,p]{showPedalMidiLearn(p);};c->onClear=[this,p]{clearBinding(board::pedalMidiTarget(p));};c->onAddCapture=[this,p](bool t3){addPersonalPedal(p,t3);};c->onDeleteCapture=[this,p](const String& hash){deletePersonalPedal(p,hash);};c->onSelectCapture=[this,p](const String& hash){const auto entry=userPedals.entry(p,hash);loadPersonalPedal(p,userPedals.file(p,hash),hash,entry.label,entry.sourceUrl,false);};}playModule.contentView().addAndMakeVisible(*c);c->setVisible(!jamActive&&!learnActive&&!recordActive);}refreshPersonalPedals();syncInput();
+                for(int v=0;v<board::count;++v){auto& c=cards[(size_t)v];c=std::make_unique<PedalCard>(v,*pedals);int p=PedalCard::engineFor(v);if(p>=0){c->onLearn=[this,p]{showPedalMidiLearn(p);};c->onClear=[this,p]{clearBinding(board::pedalMidiTarget(p));};c->onAddCapture=[this,p](bool t3){addPersonalPedal(p,t3);};c->onDeleteCapture=[this,p](const String& hash){deletePersonalPedal(p,hash);};c->onSelectCapture=[this,p](const String& hash){const auto entry=userPedals.entry(p,hash);loadPersonalPedal(p,userPedals.file(p,hash),hash,entry.label,entry.sourceUrl,false);};}playModule.contentView().addAndMakeVisible(*c);c->setVisible(!jamActive&&!learnActive&&!recordActive);}
+                playModule.contentView().triCompCard=std::make_unique<tonegrid::play::BassRackCard>(*pedals,tonegrid::play::BassRackUnit::TriComp);
+                playModule.contentView().triDriveCard=std::make_unique<tonegrid::play::BassRackCard>(*pedals,tonegrid::play::BassRackUnit::TriDrive);
+                playModule.contentView().triCompCard->onOpenEditor=[this](auto u){showBassRackEditor(u);};
+                playModule.contentView().triDriveCard->onOpenEditor=[this](auto u){showBassRackEditor(u);};
+                playModule.contentView().addChildComponent(*playModule.contentView().triCompCard);
+                playModule.contentView().addChildComponent(*playModule.contentView().triDriveCard);
+                playModule.contentView().setInstrumentMode(pedals->instrumentMode(),!jamActive&&!learnActive&&!recordActive);
+                refreshPersonalPedals();syncInput();
                 resized();refresh();active.setText(startupPresetPending?"Preparing your presets...":startupNam?"Loading local NAM amp...":"Loading TONEX...",dontSendNotification);report("Loaded 151 NAM captures across nine pedals and the existing algorithmic presets.");report(startupPresetPending?"Preparing User Presets and amp source.":startupNam?"Loading local NAM amp automatically.":"Loading TONEX automatically.");if(!startupPresetPending)loadRig();
             }
         }

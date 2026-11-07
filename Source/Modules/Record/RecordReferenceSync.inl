@@ -1,7 +1,7 @@
 // RECORD's control-thread adapter. The realtime engine owns only a generic
 // transport hold and sample clock, and has no browser or YouTube dependency.
 void RecordController::cancelReference(){referenceWanted=referenceAwaiting=referenceBuffering=false;referenceDeadline=0;videoDrift.reset();view.youtube.pauseTransport();engine.setSyncHeld(false);}
-juce::int64 RecordController::videoFrame(double seconds)const{return juce::jmax<juce::int64>(0,session.referenceStart+std::llround((seconds-session.youtubeStart)*session.rate));}
+juce::int64 RecordController::videoFrame(double seconds)const{return std::max<juce::int64>(0,session.referenceStart+std::llround((seconds-session.youtubeStart)*session.rate));}
 void RecordController::ensureReference(){
  if(!active||session.videoId.isEmpty()||!view.referenceVisible())return;
  if(!view.youtube.hasPlayer()){view.youtube.load(session.videoURL);view.youtube.seek(juce::jmax(0.,session.youtubeStart+(engine.position()-session.referenceStart)/session.rate),false);}

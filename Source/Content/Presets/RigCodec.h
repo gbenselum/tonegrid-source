@@ -11,6 +11,178 @@ inline Result ampCompatibility(const PluginDescription& saved,const PluginDescri
     const bool same=generic?vst3::Identity::of(saved).valid()&&vst3::Identity::of(saved)==vst3::Identity::of(actual):saved.isDuplicateOf(actual);
     return same?Result::ok():Result::fail(generic?"VST3 identity differs from this saved rig.":"TONEX identity differs from this saved rig.");
 }
+inline XmlElement encodeBassRack(const State& s)
+{
+    XmlElement rack("BassRack");
+    rack.setAttribute("version", 1);
+    rack.setAttribute("mode", static_cast<int>(s.instrumentMode));
+    rack.setAttribute("order", static_cast<int>(s.rackOrder));
+
+    auto* tc = rack.createNewChildElement("TriComp");
+    tc->setAttribute("enabled", s.triComp.enabled);
+    tc->setAttribute("preset", s.triComp.preset);
+    tc->setAttribute("inputDb", s.triComp.inputDb);
+    tc->setAttribute("outputDb", s.triComp.outputDb);
+    tc->setAttribute("mix", s.triComp.mix);
+    tc->setAttribute("lowMidHz", s.triComp.lowMidHz);
+    tc->setAttribute("midHighHz", s.triComp.midHighHz);
+    tc->setAttribute("linkAmount", s.triComp.linkAmount);
+    tc->setAttribute("audioHighPass", s.triComp.audioHighPass);
+    for (int b = 0; b < 3; ++b)
+    {
+        const auto& band = s.triComp.bands[static_cast<size_t>(b)];
+        auto* bn = tc->createNewChildElement("Band");
+        bn->setAttribute("index", b);
+        bn->setAttribute("ratio", static_cast<int>(band.ratio));
+        bn->setAttribute("attackMs", band.attackMs);
+        bn->setAttribute("releaseMs", band.releaseMs);
+        bn->setAttribute("audioMode", static_cast<int>(band.audioMode));
+        bn->setAttribute("detectorMode", static_cast<int>(band.detectorMode));
+        bn->setAttribute("levelDb", band.levelDb);
+        bn->setAttribute("solo", band.solo);
+        bn->setAttribute("mute", band.mute);
+    }
+
+    auto* td = rack.createNewChildElement("TriDrive");
+    td->setAttribute("enabled", s.triDrive.enabled);
+    td->setAttribute("preset", s.triDrive.preset);
+    td->setAttribute("inputDb", s.triDrive.inputDb);
+    td->setAttribute("outputDb", s.triDrive.outputDb);
+    td->setAttribute("blend", s.triDrive.blend);
+    td->setAttribute("lowMidHz", s.triDrive.lowMidHz);
+    td->setAttribute("midHighHz", s.triDrive.midHighHz);
+    td->setAttribute("lowComp", s.triDrive.lowComp);
+    td->setAttribute("lowLpfHz", s.triDrive.lowLpfHz);
+    td->setAttribute("lowLevelDb", s.triDrive.lowLevelDb);
+    td->setAttribute("lowSolo", s.triDrive.lowSolo);
+    td->setAttribute("lowMute", s.triDrive.lowMute);
+    td->setAttribute("midCharacter", static_cast<int>(s.triDrive.midCharacter));
+    td->setAttribute("midDrive", s.triDrive.midDrive);
+    td->setAttribute("midPresence", s.triDrive.midPresence);
+    td->setAttribute("midLevelDb", s.triDrive.midLevelDb);
+    td->setAttribute("midSolo", s.triDrive.midSolo);
+    td->setAttribute("midMute", s.triDrive.midMute);
+    td->setAttribute("highCharacter", static_cast<int>(s.triDrive.highCharacter));
+    td->setAttribute("highDrive", s.triDrive.highDrive);
+    td->setAttribute("highHpfHz", s.triDrive.highHpfHz);
+    td->setAttribute("highLevelDb", s.triDrive.highLevelDb);
+    td->setAttribute("highSolo", s.triDrive.highSolo);
+    td->setAttribute("highMute", s.triDrive.highMute);
+    td->setAttribute("cabSimEnabled", s.triDrive.cabSimEnabled);
+    td->setAttribute("postEqEnabled", s.triDrive.postEqEnabled);
+    for (int b = 0; b < 7; ++b)
+        td->setAttribute("eq" + String(b), s.triDrive.postEqBands[static_cast<size_t>(b)]);
+    if (s.triDriveAssets.midNamFile.isNotEmpty())
+    {
+        td->setAttribute("midNamFile", s.triDriveAssets.midNamFile);
+        td->setAttribute("midNamHash", s.triDriveAssets.midNamHash);
+        td->setAttribute("midNamLabel", s.triDriveAssets.midNamLabel);
+    }
+    if (s.triDriveAssets.highNamFile.isNotEmpty())
+    {
+        td->setAttribute("highNamFile", s.triDriveAssets.highNamFile);
+        td->setAttribute("highNamHash", s.triDriveAssets.highNamHash);
+        td->setAttribute("highNamLabel", s.triDriveAssets.highNamLabel);
+    }
+    if (s.triDriveAssets.cabIrFile.isNotEmpty())
+    {
+        td->setAttribute("cabIrFile", s.triDriveAssets.cabIrFile);
+        td->setAttribute("cabIrHash", s.triDriveAssets.cabIrHash);
+        td->setAttribute("cabIrLabel", s.triDriveAssets.cabIrLabel);
+    }
+    return rack;
+}
+
+inline bool decodeBassRack(const XmlElement& rack, State& out)
+{
+    if (rack.getIntAttribute("version", 0) != 1)
+        return false;
+    const int modeInt = rack.getIntAttribute("mode", 0);
+    const int orderInt = rack.getIntAttribute("order", 0);
+    if (modeInt < 0 || modeInt > 1 || orderInt < 0 || orderInt > 1)
+        return false;
+    out.instrumentMode = static_cast<tonegrid::InstrumentMode>(modeInt);
+    out.rackOrder = static_cast<tonegrid::BassRackOrder>(orderInt);
+
+    if (const auto* tc = rack.getChildByName("TriComp"))
+    {
+        auto p = tonegrid::triComp::presetDefaults(tc->getIntAttribute("preset", 0));
+        p.enabled = tc->getBoolAttribute("enabled", false);
+        p.preset = tc->getIntAttribute("preset", 0);
+        p.inputDb = static_cast<float>(tc->getDoubleAttribute("inputDb", p.inputDb));
+        p.outputDb = static_cast<float>(tc->getDoubleAttribute("outputDb", p.outputDb));
+        p.mix = static_cast<float>(tc->getDoubleAttribute("mix", p.mix));
+        p.lowMidHz = static_cast<float>(tc->getDoubleAttribute("lowMidHz", p.lowMidHz));
+        p.midHighHz = static_cast<float>(tc->getDoubleAttribute("midHighHz", p.midHighHz));
+        p.linkAmount = static_cast<float>(tc->getDoubleAttribute("linkAmount", p.linkAmount));
+        p.audioHighPass = tc->getBoolAttribute("audioHighPass", p.audioHighPass);
+        for (const auto* bn : tc->getChildWithTagNameIterator("Band"))
+        {
+            const int idx = bn->getIntAttribute("index", -1);
+            if (idx < 0 || idx >= 3)
+                return false;
+            auto& b = p.bands[static_cast<size_t>(idx)];
+            b.ratio = static_cast<tonegrid::multiband::DistressorRatio>(bn->getIntAttribute("ratio", static_cast<int>(b.ratio)));
+            b.attackMs = static_cast<float>(bn->getDoubleAttribute("attackMs", b.attackMs));
+            b.releaseMs = static_cast<float>(bn->getDoubleAttribute("releaseMs", b.releaseMs));
+            b.audioMode = static_cast<tonegrid::multiband::DistressorAudioMode>(bn->getIntAttribute("audioMode", static_cast<int>(b.audioMode)));
+            b.detectorMode = static_cast<tonegrid::multiband::DetectorMode>(bn->getIntAttribute("detectorMode", static_cast<int>(b.detectorMode)));
+            b.levelDb = static_cast<float>(bn->getDoubleAttribute("levelDb", b.levelDb));
+            b.solo = bn->getBoolAttribute("solo", false);
+            b.mute = bn->getBoolAttribute("mute", false);
+        }
+        if (!tonegrid::triComp::valid(p))
+            return false;
+        out.triComp = p;
+    }
+
+    if (const auto* td = rack.getChildByName("TriDrive"))
+    {
+        auto p = tonegrid::triDrive::presetDefaults(td->getIntAttribute("preset", 0));
+        p.enabled = td->getBoolAttribute("enabled", false);
+        p.preset = td->getIntAttribute("preset", 0);
+        p.inputDb = static_cast<float>(td->getDoubleAttribute("inputDb", p.inputDb));
+        p.outputDb = static_cast<float>(td->getDoubleAttribute("outputDb", p.outputDb));
+        p.blend = static_cast<float>(td->getDoubleAttribute("blend", p.blend));
+        p.lowMidHz = static_cast<float>(td->getDoubleAttribute("lowMidHz", p.lowMidHz));
+        p.midHighHz = static_cast<float>(td->getDoubleAttribute("midHighHz", p.midHighHz));
+        p.lowComp = static_cast<float>(td->getDoubleAttribute("lowComp", p.lowComp));
+        p.lowLpfHz = static_cast<float>(td->getDoubleAttribute("lowLpfHz", p.lowLpfHz));
+        p.lowLevelDb = static_cast<float>(td->getDoubleAttribute("lowLevelDb", p.lowLevelDb));
+        p.lowSolo = td->getBoolAttribute("lowSolo", false);
+        p.lowMute = td->getBoolAttribute("lowMute", false);
+        p.midCharacter = static_cast<tonegrid::multiband::DriveCharacter>(td->getIntAttribute("midCharacter", static_cast<int>(p.midCharacter)));
+        p.midDrive = static_cast<float>(td->getDoubleAttribute("midDrive", p.midDrive));
+        p.midPresence = static_cast<float>(td->getDoubleAttribute("midPresence", p.midPresence));
+        p.midLevelDb = static_cast<float>(td->getDoubleAttribute("midLevelDb", p.midLevelDb));
+        p.midSolo = td->getBoolAttribute("midSolo", false);
+        p.midMute = td->getBoolAttribute("midMute", false);
+        p.highCharacter = static_cast<tonegrid::multiband::DriveCharacter>(td->getIntAttribute("highCharacter", static_cast<int>(p.highCharacter)));
+        p.highDrive = static_cast<float>(td->getDoubleAttribute("highDrive", p.highDrive));
+        p.highHpfHz = static_cast<float>(td->getDoubleAttribute("highHpfHz", p.highHpfHz));
+        p.highLevelDb = static_cast<float>(td->getDoubleAttribute("highLevelDb", p.highLevelDb));
+        p.highSolo = td->getBoolAttribute("highSolo", false);
+        p.highMute = td->getBoolAttribute("highMute", false);
+        p.cabSimEnabled = td->getBoolAttribute("cabSimEnabled", true);
+        p.postEqEnabled = td->getBoolAttribute("postEqEnabled", true);
+        for (int b = 0; b < 7; ++b)
+            p.postEqBands[static_cast<size_t>(b)] = static_cast<float>(td->getDoubleAttribute("eq" + String(b), p.postEqBands[static_cast<size_t>(b)]));
+        if (!tonegrid::triDrive::valid(p))
+            return false;
+        out.triDrive = p;
+        out.triDriveAssets.midNamFile = td->getStringAttribute("midNamFile");
+        out.triDriveAssets.midNamHash = td->getStringAttribute("midNamHash");
+        out.triDriveAssets.midNamLabel = td->getStringAttribute("midNamLabel");
+        out.triDriveAssets.highNamFile = td->getStringAttribute("highNamFile");
+        out.triDriveAssets.highNamHash = td->getStringAttribute("highNamHash");
+        out.triDriveAssets.highNamLabel = td->getStringAttribute("highNamLabel");
+        out.triDriveAssets.cabIrFile = td->getStringAttribute("cabIrFile");
+        out.triDriveAssets.cabIrHash = td->getStringAttribute("cabIrHash");
+        out.triDriveAssets.cabIrLabel = td->getStringAttribute("cabIrLabel");
+    }
+    return true;
+}
+
 // Pure XML conversion/validation. A failed decode never publishes its candidate.
 inline XmlElement encode(const State& original, const PluginDescription& description, const RigIdentityLookup& identity)
 {
@@ -38,6 +210,8 @@ inline XmlElement encode(const State& original, const PluginDescription& descrip
         item->setAttribute("model",isNam(p)&&v.preset==presetCount(p)&&s.customPedalHashes[size_t(p)].isNotEmpty()?s.customPedalHashes[size_t(p)]:identity(p,v.preset));
         if(isNam(p)&&v.preset==presetCount(p))item->setAttribute("personalCapture",true);
     }
+    if (tonegrid::isBass(s.instrumentMode) || s.triComp.enabled || s.triDrive.enabled)
+        xml.addChildElement(new XmlElement(encodeBassRack(s)));
     tonegrid::presets::restoreExtensions(xml, s.extensionXml);
     if(native&&s.cabinet&&s.cabinet->bypassed)
     {auto features=StringArray::fromTokens(xml.getStringAttribute("requiredFeatures"),",",{});features.addIfNotAlreadyThere("cabinet-bypass");xml.setAttribute("requiredFeatures",features.joinIntoString(","));}
@@ -53,6 +227,11 @@ inline Result decode(const XmlElement& xml, const PluginDescription& expected, c
     candidate.presetId = xml.getStringAttribute("presetId", "legacy-" + SHA256(xml.toString().toUTF8()).toHexString());
     if (candidate.presetId.isEmpty() || candidate.presetId.length() > 128) return Result::fail("Invalid preset ID.");
     candidate.extensionXml = tonegrid::presets::captureExtensions(xml);
+    if (const auto* bassNode = xml.getChildByName("BassRack"))
+    {
+        if (!decodeBassRack(*bassNode, candidate))
+            return Result::fail("Invalid BassRack settings.");
+    }
     if(version>=9)
     {
         int countOutput=0;for(auto* child:xml.getChildIterator())countOutput+=child->hasTagName("OutputDSP")?1:0;

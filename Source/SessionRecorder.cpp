@@ -54,7 +54,7 @@ void SessionRecorder::process(float* const* output,int channels,int samples,bool
     {
         if(current==Mode::recording)
         {
-            const int count=static_cast<int>(jmin<int64>(samples,captureLimit-captured.load()));
+            const int count=static_cast<int>(std::min<juce::int64>(samples,captureLimit-captured.load()));
             if(count>0)
             {
                 int a=0,n=0,b=0,m=0;fifo.prepareToWrite(count,a,n,b,m);
@@ -124,7 +124,7 @@ void SessionRecorder::fillPlayback()
 {
     while(produced<playLimit&&fifo.getFreeSpace()>=blockSize)
     {
-        const int count=static_cast<int>(jmin<int64>(blockSize,playLimit-produced));
+        const int count=static_cast<int>(std::min<juce::int64>(blockSize,playLimit-produced));
         scratch.clear();resampler->getNextAudioBlock({&scratch,0,count});
         int a=0,n=0,b=0,m=0;fifo.prepareToWrite(count,a,n,b,m);
         for(int c=0;c<2;++c)

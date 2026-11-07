@@ -211,13 +211,11 @@ public:
     void selectPartForTest(int index){parts.setSelectedId(index+1,juce::sendNotificationSync);}
     juce::Component& content(){return body;}
     void reloadIfChanged(){if(catalogueLayer.revision()!=catalogueRevision)reload();}
-#if JUCE_WEB_BROWSER
     void inspectPlayer(std::function<void(juce::var)> callback){player.inspect(std::move(callback));}
     juce::String playerNetworkError()const{return player.lastNetworkError();}
     void sendFullscreenEventForTest(bool active){player.sendFullscreenEventForTest(active);}
     void escapeFullscreenForTest(){player.escapeFullscreenForTest();}
     bool playerFullScreen()const{return player.isFullScreen();}
-#endif
     std::function<bool(const juce::String&)> openExternal=[](const juce::String& address){return juce::URL(address).launchInDefaultBrowser();};
 private:
     int detailVideoWidth(int width)const{return juce::jmin(1000,width-80,juce::jmax(220,viewport.getHeight()-240)*16/9);}

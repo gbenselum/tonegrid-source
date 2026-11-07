@@ -33,6 +33,10 @@ public:
         detectorPole=std::exp(-2*juce::MathConstants<double>::pi*35/sr);
         sweepPole=std::exp(-1.0/(sr*.002));
     }
+    // Bass mode moves the sweep floor down an octave so the vowel lands on
+    // bass fundamentals. Guitar mode (default) uses the original voices.
+    void setBassMode(bool value){if(value==bassMode)return;bassMode=value;setVoice(voice,false);}
+    bool isBassMode()const{return bassMode;}
     void reset(){envelope=ic1=ic2=detectorLow=sweep=0;frequency=260;}
     void set(float sensitivity,float range,float decay,int preset=0)
     {sens.setTargetValue(sensitivity);span.setTargetValue(range);release.setTargetValue(decay);if(preset!=voice)setVoice(preset,false);}
@@ -67,9 +71,9 @@ private:
     {
         voice=juce::jlimit(0,7,preset);const auto& v=voices[(size_t)voice];
         auto assign=[&](auto& s,double value){if(immediate)s.setCurrentAndTargetValue(value);else s.setTargetValue(value);};
-        assign(q,v.q);assign(band,v.band);assign(bottom,v.bottom);assign(direction,v.reverse?1.0:0.0);assign(attackMs,v.attackMs);
+        assign(q,v.q);assign(band,v.band);assign(bottom,bassMode?v.bottom*.5:v.bottom);assign(direction,v.reverse?1.0:0.0);assign(attackMs,v.attackMs);
     }
-    int voice=0;
+    int voice=0;bool bassMode=false;
     double sr=48000,envelope=0,ic1=0,ic2=0,frequency=260,detectorLow=0,detectorPole=0,sweep=0,sweepPole=0;
     juce::SmoothedValue<double> sens,span,release,q,band,bottom,direction,attackMs;
 };

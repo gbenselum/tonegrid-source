@@ -17,7 +17,7 @@ public:
  void quiesce(){mode.store(stopped);while(readers.load()!=0)juce::Thread::yield();}
  void setTimeline(std::unique_ptr<TimelineAudio> value){quiesce();audio=std::move(value);}
  const TimelineAudio* timeline()const{return audio.get();}
- void seek(juce::int64 frame){quiesce();cursor.store(juce::jmax<juce::int64>(0,frame));}
+ void seek(juce::int64 frame){quiesce();cursor.store(std::max<juce::int64>(0,frame));}
  bool play(){if(!audio||writer)return false;origin=cursor.load();elapsed=0;mode.store(playing);return true;}
  juce::Result record(const juce::File& file,double rate,double timelineRate,juce::uint64 expectedRevision=std::numeric_limits<juce::uint64>::max()) {
   stop();if(!std::isfinite(rate)||rate<8000||rate>192000||!std::isfinite(timelineRate)||timelineRate<8000||timelineRate>192000)return juce::Result::fail("Choose a supported audio device before recording.");
@@ -38,10 +38,10 @@ public:
  juce::int64 position()const noexcept{return cursor.load();}
  void setSyncHeld(bool value)noexcept{syncHeld=value;}
  bool isSyncHeld()const noexcept{return syncHeld.load();}
- void setReferenceEnd(juce::int64 frame)noexcept{referenceEnd=juce::jmax<juce::int64>(0,frame);}
+ void setReferenceEnd(juce::int64 frame)noexcept{referenceEnd=std::max<juce::int64>(0,frame);}
  // Only align playback or a still-empty armed take. A running take is never
  // shifted, stretched or rewritten to follow an external media clock.
- bool alignForReference(juce::int64 frame){const auto previous=mode.load();if(previous==stopped)return false;quiesce();if(previous==recording&&captured.load()!=0){mode=previous;return false;}origin=juce::jmax<juce::int64>(0,frame);elapsed=0;cursor=origin;mode=previous;return true;}
+ bool alignForReference(juce::int64 frame){const auto previous=mode.load();if(previous==stopped)return false;quiesce();if(previous==recording&&captured.load()!=0){mode=previous;return false;}origin=std::max<juce::int64>(0,frame);elapsed=0;cursor=origin;mode=previous;return true;}
  double currentDeviceRate()const noexcept{return deviceRate.load();}
  void setPlaybackLatency(int frames)noexcept{playbackLatency=juce::jmax(0,frames);}
  void setPreviewSink(juce::AudioFormatWriter::ThreadedWriter::IncomingDataReceiver* sink){quiesce();previewSink=sink;}

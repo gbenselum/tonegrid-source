@@ -42,22 +42,69 @@ public:
         mean/=window.size();power=std::max(0.0,power/window.size()-mean*mean);
         out.levelDb=power>1e-18?10*std::log10(power):-120;
         if(out.levelDb< -55||!std::isfinite(rate)||rate<8000)return out;
-        const int maximum=std::min(1023,int(rate/28.0)),minimum=std::max(2,int(rate/1500.0));
-        const int integration=2048-maximum;std::array<double,1024> yin{},raw{};yin[0]=1;double cumulative=0;
-        for(int lag=1;lag<=maximum;++lag)
+        auto runYin=[](const float* samples,int length,double effRate,double minHz,double maxHz)->Reading
         {
-            double difference=0;for(int i=0;i<integration;++i){const double d=double(window[size_t(i)])-window[size_t(i+lag)];difference+=d*d;}
-            raw[size_t(lag)]=difference;cumulative+=difference;yin[size_t(lag)]=cumulative>0?difference*lag/cumulative:1;
+            Reading r;
+            const int maximum=std::min(length/2-1,int(effRate/minHz)),minimum=std::max(2,int(effRate/maxHz));
+            if(maximum<=minimum)return r;
+            const int integration=length-maximum;std::array<double,1024> yin{},raw{};yin[0]=1;double cumulative=0;
+            for(int lag=1;lag<=maximum;++lag)
+            {
+                double difference=0;for(int i=0;i<integration;++i){const double d=double(samples[size_t(i)])-samples[size_t(i+lag)];difference+=d*d;}
+                raw[size_t(lag)]=difference;cumulative+=difference;yin[size_t(lag)]=cumulative>0?difference*lag/cumulative:1;
+            }
+            int best=-1;
+            for(int lag=minimum;lag<=maximum;++lag)if(yin[size_t(lag)]<.15)
+            {while(lag<maximum&&yin[size_t(lag+1)]<yin[size_t(lag)])++lag;best=lag;break;}
+            if(best<0){double value=.3;for(int lag=minimum;lag<=maximum;++lag)if(yin[size_t(lag)]<value){value=yin[size_t(lag)];best=lag;}}
+            if(best<0)return r;
+            double refined=best;
+            // Refine the raw difference minimum; normalisation biases high-note cents.
+            if(best>minimum&&best<maximum){const auto a=raw[size_t(best-1)],b=raw[size_t(best)],c=raw[size_t(best+1)];const double denominator=a-2*b+c;if(std::abs(denominator)>1e-12)refined+=.5*(a-c)/denominator;}
+            r.frequency=effRate/refined;r.confidence=std::clamp(1-yin[size_t(best)],0.0,1.0);return r;
+        };
+        const auto primary=runYin(window.data(),2048,rate,28.0,1500.0);
+        out.frequency=primary.frequency;out.confidence=primary.confidence;
+        // At 48 kHz a 2048-sample window is 42.67 ms long, so half-window lag caps at 46.9 Hz,
+        // missing 4-string E1 (41.20 Hz, 24.27 ms period) and 5-string B0 (30.87 Hz, 32.40 ms period).
+        // When no pitch was locked or the primary lock is below 65 Hz, run a 4x-decimated
+        // variable-overlap YIN pass (512 samples at rate/4, lags up to 84% of window -> down to 28 Hz).
+        if(rate>=32000.0&&(out.confidence<.85||out.frequency<65.0))
+        {
+            std::array<float,512> decimated{};
+            for(size_t i=0;i<512;++i)
+                decimated[i]=.25f*(window[4*i]+window[4*i+1]+window[4*i+2]+window[4*i+3]);
+            const double effRate=rate*.25;
+            const int maximum=std::min(int(decimated.size()*84/100),int(effRate/27.5));
+            const int minimum=std::max(2,int(effRate/120.0));
+            if(maximum>minimum)
+            {
+                std::array<double,512> yin{},raw{};yin[0]=1;double cumulative=0;
+                for(int lag=1;lag<=maximum;++lag)
+                {
+                    const int overlap=int(decimated.size())-lag;
+                    double difference=0;
+                    for(int i=0;i<overlap;++i){const double d=double(decimated[size_t(i)])-decimated[size_t(i+lag)];difference+=d*d;}
+                    difference/=double(overlap);
+                    raw[size_t(lag)]=difference;cumulative+=difference;
+                    yin[size_t(lag)]=cumulative>0?difference*lag/cumulative:1;
+                }
+                int best=-1;
+                for(int lag=minimum;lag<=maximum;++lag)if(yin[size_t(lag)]<.15)
+                {while(lag<maximum&&yin[size_t(lag+1)]<yin[size_t(lag)])++lag;best=lag;break;}
+                if(best<0){double value=.3;for(int lag=minimum;lag<=maximum;++lag)if(yin[size_t(lag)]<value){value=yin[size_t(lag)];best=lag;}}
+                if(best>=minimum)
+                {
+                    double refined=best;
+                    if(best>minimum&&best<maximum){const auto a=raw[size_t(best-1)],b=raw[size_t(best)],c=raw[size_t(best+1)];const double denominator=a-2*b+c;if(std::abs(denominator)>1e-12)refined+=.5*(a-c)/denominator;}
+                    const double freq=effRate/refined;
+                    const double conf=std::clamp(1-yin[size_t(best)],0.0,1.0);
+                    if(freq>=27.5&&freq<=65.0&&conf>out.confidence-.02)
+                    {out.frequency=freq;out.confidence=conf;}
+                }
+            }
         }
-        int best=-1;
-        for(int lag=minimum;lag<=maximum;++lag)if(yin[size_t(lag)]<.15)
-        {while(lag<maximum&&yin[size_t(lag+1)]<yin[size_t(lag)])++lag;best=lag;break;}
-        if(best<0){double value=.3;for(int lag=minimum;lag<=maximum;++lag)if(yin[size_t(lag)]<value){value=yin[size_t(lag)];best=lag;}}
-        if(best<0)return out;
-        double refined=best;
-        // Refine the raw difference minimum; normalisation biases high-note cents.
-        if(best>minimum&&best<maximum){const auto a=raw[size_t(best-1)],b=raw[size_t(best)],c=raw[size_t(best+1)];const double denominator=a-2*b+c;if(std::abs(denominator)>1e-12)refined+=.5*(a-c)/denominator;}
-        out.frequency=rate/refined;out.confidence=std::clamp(1-yin[size_t(best)],0.0,1.0);return out;
+        return out;
     }
 private:
     void publish(Reading value){std::lock_guard<std::mutex> guard(resultMutex);result=value;}

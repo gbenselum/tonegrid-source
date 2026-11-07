@@ -4,7 +4,7 @@
 namespace tonegrid::presets {
 inline bool knownNode(const juce::String& tag) {
     return tag == "Input" || tag == "Pedal" || tag == "AmpSource" || tag == "Amp"
-        || tag == "PLUGIN" || tag == "CabinetIR" || tag == "OutputDSP";
+        || tag == "PLUGIN" || tag == "CabinetIR" || tag == "OutputDSP" || tag == "BassRack";
 }
 inline bool knownAttribute(const juce::String& name) {
     return name == "version" || name == "name" || name == "presetId";
@@ -47,7 +47,7 @@ inline juce::Result compatibility(const juce::XmlElement& xml) {
     const auto required = juce::StringArray::fromTokens(xml.getStringAttribute("requiredFeatures"), ",", {});
     for (auto name : required) {
         name = name.trim();
-        if (name.isNotEmpty() && name != "nam" && name != "cabinet-ir" && name != "postfx-v1" && name != "cabinet-bypass")
+        if (name.isNotEmpty() && name != "nam" && name != "cabinet-ir" && name != "postfx-v1" && name != "cabinet-bypass" && name != "bass-rack")
             return juce::Result::fail("This preset needs an unsupported feature: " + name);
     }
     return juce::Result::ok();

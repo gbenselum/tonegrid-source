@@ -12,6 +12,9 @@
 #include <NAM/get_dsp.h>
 #include "NamQuality.h"
 #include "LevelCalibration.h"
+#include "InstrumentMode.h"
+#include "Effects/TriComp/TriCompProcessor.h"
+#include "Effects/TriDrive/TriDriveProcessor.h"
 #include <atomic>
 #include <cmath>
 
@@ -51,7 +54,50 @@ class Processor final : public AudioProcessor
 {
 public:
     Processor() : AudioProcessor(BusesProperties().withInput("Guitar", AudioChannelSet::stereo(), true).withOutput("Pedals", AudioChannelSet::stereo(), true))
-    { for (int i = 0; i < count; ++i) {models[size_t(i)].resize(size_t(presetCount(i)+(isNam(i)?1:0)));set(i, defaults(i, recommendedPreset(i)));} }
+    {
+        for (int i = 0; i < count; ++i) {models[size_t(i)].resize(size_t(presetCount(i)+(isNam(i)?1:0)));set(i, defaults(i, recommendedPreset(i)));}
+        setTriComp(tonegrid::triComp::presetDefaults(0));
+        setTriDrive(tonegrid::triDrive::presetDefaults(0));
+    }
+    void setInstrumentMode(tonegrid::InstrumentMode mode) noexcept
+    {
+        instrumentModeAtomic.store(static_cast<int>(mode), std::memory_order_release);
+        const bool bass = tonegrid::isBass(mode);
+        front.setBassMode(bass);
+        wah.setBassMode(bass);
+        if (prepared)
+            eq.prepare(sr, get(id(PedalId::GraphicEq)).eqBands, bass ? tonegrid::bassEqFrequencies : eqFrequencies);
+    }
+    tonegrid::InstrumentMode instrumentMode() const noexcept
+    {
+        return static_cast<tonegrid::InstrumentMode>(instrumentModeAtomic.load(std::memory_order_acquire));
+    }
+    void setRackOrder(tonegrid::BassRackOrder ro) noexcept
+    {
+        rackOrderAtomic.store(static_cast<int>(ro), std::memory_order_release);
+    }
+    tonegrid::BassRackOrder rackOrder() const noexcept
+    {
+        return static_cast<tonegrid::BassRackOrder>(rackOrderAtomic.load(std::memory_order_acquire));
+    }
+    void setTriComp(const tonegrid::triComp::Parameters& p) noexcept
+    {
+        if (!tonegrid::triComp::valid(p)) return;
+        triCompControl = p;
+        triCompMailbox.publish(p);
+    }
+    tonegrid::triComp::Parameters getTriComp() const noexcept { return triCompControl; }
+    void setTriDrive(const tonegrid::triDrive::Parameters& p) noexcept
+    {
+        if (!tonegrid::triDrive::valid(p)) return;
+        triDriveControl = p;
+        triDriveMailbox.publish(p);
+    }
+    tonegrid::triDrive::Parameters getTriDrive() const noexcept { return triDriveControl; }
+    tonegrid::triComp::Processor& triCompProcessor() noexcept { return triComp; }
+    const tonegrid::triComp::Processor& triCompProcessor() const noexcept { return triComp; }
+    tonegrid::triDrive::Processor& triDriveProcessor() noexcept { return triDrive; }
+    const tonegrid::triDrive::Processor& triDriveProcessor() const noexcept { return triDrive; }
     // One reserved user slot per NAM pedal. Install only with audio detached.
     // The library index is dynamic; unselected user captures do not own DSPs.
     void installCustom(int p,Model model)
@@ -122,7 +168,7 @@ public:
         if (p==id(PedalId::StudioComp)) return compressors[(size_t)n].name;
         if (p==id(PedalId::CleanBoost)) return String(n+1).paddedLeft('0',2) + " Boost +" + String(defaults(p,n).input,0) + " dB";
         if(p==id(PedalId::AutoWah))return wahPresets[(size_t)n].name;
-        if(p==id(PedalId::GraphicEq))return eqPresets[(size_t)n].name;
+        if(p==id(PedalId::GraphicEq))return tonegrid::isBass(instrumentMode()) ? tonegrid::bassEqPresets[(size_t)n].name : eqPresets[(size_t)n].name;
         return models[(size_t)p][(size_t)n].label;
     }
     tonegrid::calibration::Metadata calibrationInfo(int p,int n) const{return modelIndex(p,n)?models[(size_t)p][(size_t)n].calibration:tonegrid::calibration::Metadata{};}
@@ -139,7 +185,10 @@ public:
     { auto& a = controls[(size_t)p]; if(!modelIndex(p,s.preset)){a.enabled.store(false);settings[(size_t)p].publish(get(p));return;} a.input.store(isNam(p)?jlimit(-12.f,12.f,s.input):s.input); a.mix.store(isNam(p)?1.f:s.mix); a.output.store(s.output); a.ratio.store(s.ratio); a.tone.store(s.tone); a.wahSensitivity.store(s.wahSensitivity);a.wahRange.store(s.wahRange);a.wahDecay.store(s.wahDecay);for(size_t b=0;b<7;++b)a.eqBands[b].store(s.eqBands[b]);a.preset.store(s.preset); a.enabled.store(s.enabled&&(!loaded||available(p,s.preset)));settings[(size_t)p].publish(get(p)); }
     void prepareToPlay(double rate, int) override
     {
-        rateOK.store(rate == 48000); sr = rate; front.prepare(rate);pitch.prepare(rate);
+        rateOK.store(rate == 48000); sr = rate;
+        const bool bass = tonegrid::isBass(instrumentMode());
+        front.setBassMode(bass);
+        front.prepare(rate);pitch.prepare(rate);
         for (int p = 0; p < count; ++p)
         {
             const auto idx=size_t(p);const auto oldIn=calibrationIn[idx].getCurrentValue(),oldOut=calibrationOut[idx].getCurrentValue();
@@ -153,7 +202,10 @@ public:
             namMute[(size_t)p].reset(rate,.004); namMute[(size_t)p].setCurrentAndTargetValue(1);
             namActive[(size_t)p]=get(p).enabled; current[(size_t)p]=get(p).preset;
         }
-        const auto w=get(id(PedalId::AutoWah));wah.prepare(rate,w.wahSensitivity,w.wahRange,w.wahDecay,w.preset);eq.prepare(rate,get(id(PedalId::GraphicEq)).eqBands);
+        const auto w=get(id(PedalId::AutoWah));wah.setBassMode(bass);wah.prepare(rate,w.wahSensitivity,w.wahRange,w.wahDecay,w.preset);
+        eq.prepare(rate,get(id(PedalId::GraphicEq)).eqBands,bass?tonegrid::bassEqFrequencies:eqFrequencies);
+        triComp.prepare(rate, triCompControl);
+        triDrive.prepare(rate, triDriveControl);
         compressor.reset();prepared=true;
     }
     void releaseResources() override {}
@@ -162,13 +214,39 @@ public:
         ScopedNoDenormals noDenormals; midi.clear();
         if (! loaded || ! rateOK.load()) { audio.clear(); return; }
         auto* left = audio.getWritePointer(0); front.process(left,audio.getNumSamples());pitch.process(left,audio.getNumSamples());
+        const auto mode = instrumentMode();
+        const bool bassModeActive = tonegrid::isBass(mode);
         referenceRouting.chunks=jmin(int(referenceRouting.known.size()),(audio.getNumSamples()+chunk-1)/chunk);
         for (int pos = 0; pos < audio.getNumSamples(); pos += chunk)
         {
             const int length = jmin(chunk, audio.getNumSamples() - pos);
             bool referenceKnown=tonegrid::calibration::active(calibrationSettings);
+            bool bassRackProcessedInChunk = false;
             for (const int p : order)
             {
+                if (bassModeActive)
+                {
+                    // In Bass mode, run TRI-COMP and TRI-DRIVE right after AutoWah and Classic/Vintage Fuzz
+                    // (where StudioComp / overdrives used to sit), before GraphicEq, CleanBoost, and the Amp!
+                    if (!bassRackProcessedInChunk && p == id(PedalId::StudioComp))
+                    {
+                        bassRackProcessedInChunk = true;
+                        const auto tcParams = triCompMailbox.read();
+                        const auto tdParams = triDriveMailbox.read();
+                        if (rackOrder() == tonegrid::BassRackOrder::CompThenDrive)
+                        {
+                            triComp.processBlock(left + pos, length, tcParams);
+                            triDrive.processBlock(left + pos, length, tdParams);
+                        }
+                        else
+                        {
+                            triDrive.processBlock(left + pos, length, tdParams);
+                            triComp.processBlock(left + pos, length, tcParams);
+                        }
+                    }
+                    if (tonegrid::isPedalRemovedInBassMode(p))
+                        continue;
+                }
                 const auto idx = (size_t)p; const auto s = settings[idx].read();
                 auto& fade = wet[idx];
                 if (isNam(p))
@@ -263,6 +341,14 @@ private:
     }
     struct Control { std::atomic<int> preset {0}; std::atomic<bool> enabled {false}; std::atomic<float> input {0}, mix {1}, output {0}, ratio {2}, tone {0}, wahSensitivity{55},wahRange{75},wahDecay{160}; std::array<std::atomic<float>,7> eqBands{}; };
     AutoWah wah;GraphicEq eq;CompressorProcessor compressor;
+    tonegrid::triComp::Processor triComp;
+    tonegrid::triDrive::Processor triDrive;
+    tonegrid::triComp::Parameters triCompControl{};
+    tonegrid::triDrive::Parameters triDriveControl{};
+    tonegrid::ParameterMailbox<tonegrid::triComp::Parameters> triCompMailbox;
+    tonegrid::ParameterMailbox<tonegrid::triDrive::Parameters> triDriveMailbox;
+    std::atomic<int> instrumentModeAtomic{ static_cast<int>(tonegrid::InstrumentMode::Guitar) };
+    std::atomic<int> rackOrderAtomic{ static_cast<int>(tonegrid::BassRackOrder::CompThenDrive) };
     std::array<Control,count> controls;
     std::array<tonegrid::ParameterMailbox<Setting>,count> settings;
     std::array<std::vector<Model>,count> models;

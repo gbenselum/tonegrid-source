@@ -15,7 +15,7 @@ inline juce::Result renderWave(const core::TimelineAudio& timeline,core::IRender
  std::unique_ptr<AudioFormatWriter> writer(stream?wav.createWriterFor(stream.get(),timeline.rate,2,32,{},0):nullptr);if(!writer)return Result::fail("Cannot create the temporary render audio.");stream.release();
  AudioBuffer<float> audio(2,512);const auto started=std::chrono::steady_clock::now();
  for(int64 offset=0;offset<to+latency;offset+=512){
-  if(cancel)return Result::fail("Render cancelled. Your recordings are intact.");const int frames=(int)jmin<int64>(512,to+latency-offset);audio.setSize(2,frames,false,false,true);
+  if(cancel)return Result::fail("Render cancelled. Your recordings are intact.");const int frames=(int)std::min<juce::int64>(512,to+latency-offset);audio.setSize(2,frames,false,false,true);
   for(int i=0;i<frames;++i){const auto v=timeline.guitar(double(offset+i));audio.setSample(0,i,v);audio.setSample(1,i,v);}processor.process(audio);
   const int first=(int)jlimit<int64>(0,frames,from+latency-offset);
   if(first<frames){

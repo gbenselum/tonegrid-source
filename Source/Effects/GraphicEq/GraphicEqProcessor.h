@@ -34,10 +34,12 @@ class GraphicEq
         }
     };
 public:
-    void prepare(double sr,const std::array<float,7>& values)
+    void prepare(double sr,const std::array<float,7>& values){prepare(sr,values,eqFrequencies);}
+    // Bass mode supplies its own centre frequencies (tonegrid::bassEqFrequencies).
+    void prepare(double sr,const std::array<float,7>& values,const std::array<float,7>& frequencies)
     {
         tick=0;
-        for(size_t i=0;i<bands.size();++i){auto& b=bands[i];b=Band{};const double w=2*juce::MathConstants<double>::pi*eqFrequencies[i]/sr;b.cosine=std::cos(w);b.alpha=std::sin(w)/(2*1.41421356237);b.db.reset(sr,.02);b.db.setCurrentAndTargetValue(values[i]);b.coefficients(values[i]);}
+        for(size_t i=0;i<bands.size();++i){auto& b=bands[i];b=Band{};const double w=2*juce::MathConstants<double>::pi*juce::jlimit(10.0,sr*.45,(double)frequencies[i])/sr;b.cosine=std::cos(w);b.alpha=std::sin(w)/(2*1.41421356237);b.db.reset(sr,.02);b.db.setCurrentAndTargetValue(values[i]);b.coefficients(values[i]);}
     }
     void set(const std::array<float,7>& values){for(size_t i=0;i<bands.size();++i)bands[i].db.setTargetValue(values[i]);}
     void reset(){for(auto& b:bands)b.x1=b.x2=b.y1=b.y2=0;}

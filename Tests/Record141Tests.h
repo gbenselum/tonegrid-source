@@ -133,7 +133,7 @@ inline bool run(const File& resources,const File& encoder,const File& evidence,S
    check(pairAllocations==0&&monitorError<.001,"Editable solo plus rendered rhythm playback allocates nothing and matches the independent export mix");
    GainRenderer changed(7);InspectEncoder changedOutput;record::renderExport(*combined,changed,changedOutput,root.getChildFile("changed.mp3"),true,1,0,false,true,abort,percent,0,0,{1,1});
    check(SHA256(frozen).toHexString()==hash&&SHA256(take).toHexString()==originalHash,"Changing the solo tone cannot alter the rendered rhythm or original DI");
-   GainRenderer rangeTone(3);InspectEncoder range;const auto from=juce::jmin<juce::int64>(512,frames/4),to=juce::jmin<juce::int64>(2048,frames/2);
+   GainRenderer rangeTone(3);InspectEncoder range;const auto from=std::min<juce::int64>(512,frames/4),to=std::min<juce::int64>(2048,frames/2);
    auto selected=record::renderExport(*combined,rangeTone,range,root.getChildFile("range.mp3"),true,.4f,0,false,true,abort,percent,from,to,{.6f,1});double rangeError=0;
    for(int i=0;i<range.audio.getNumSamples();++i)rangeError+=std::abs(range.audio.getSample(0,i)-output.audio.getSample(0,int(from)+i));
    check(selected.wasOk()&&range.audio.getNumSamples()==to-from&&rangeError<.001,"Export time selection crops the complete mix exactly while warming effects from the timeline start");

@@ -1,4 +1,5 @@
 #pragma once
+#include <juce_gui_basics/juce_gui_basics.h>
 #include "Platform/BrowserPlatform.h"
 #include "Shared/Media/VideoFullscreen.h"
 #include "Modules/Record/YouTube/YouTubeBridgeScript.h"

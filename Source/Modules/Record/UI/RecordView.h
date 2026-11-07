@@ -87,7 +87,7 @@ public:
   g.setColour(ui::outline());g.drawHorizontalLine(rowTop-1,0,float(width));
   const auto xFor=[&](double frame){return float((frame-first)/state.rate)*pixels;};
   for(int lane=0;lane<3;++lane){auto area=juce::Rectangle<float>(1,float(rowTop+lane*rowPitch),float(width-2),rowHeight);g.setColour(lane<2?accent().withAlpha(.10f):juce::Colour(0xff1d2a32));g.fillRoundedRectangle(area,6);
-   if(lane<2){const auto& t=track(state,lane);auto clips=t.clips;if(t.rendered.isNotEmpty())clips={{t.rendered,0,t.guitarLength,0}};if(state.pendingTake.isNotEmpty()&&state.pendingTrack==lane)clips.push_back({state.pendingTake,state.pendingStart,juce::jmax<juce::int64>(1,position-state.pendingStart),0});
+   if(lane<2){const auto& t=track(state,lane);auto clips=t.clips;if(t.rendered.isNotEmpty())clips={{t.rendered,0,t.guitarLength,0}};if(state.pendingTake.isNotEmpty()&&state.pendingTrack==lane)clips.push_back({state.pendingTake,state.pendingStart,std::max<juce::int64>(1,position-state.pendingStart),0});
     for(const auto& c:clips){const double a=juce::jmax(double(c.start),double(first)),b=juce::jmin(double(c.start+c.length),double(first)+state.rate*window.seconds);if(b<=a)continue;drawWave(g,{xFor(a),area.getY()+5,xFor(b)-xFor(a),area.getHeight()-10},c.file,(c.sourceStart+a-c.start)/state.rate,(c.sourceStart+b-c.start)/state.rate,accent());}
     if(clips.empty()){g.setColour(ui::metadataInk());g.setFont(ui::font(13));g.drawText(l10n::format("record.empty_help",{{"number",juce::String(lane+1)}}),area.toNearestInt(),juce::Justification::centred);}
    }else drawWave(g,area.reduced(0,4),state.backing,first/state.rate,first/state.rate+window.seconds,juce::Colour(0xff9bb2c2));
@@ -102,7 +102,7 @@ public:
  void mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWheelDetails& wheel)override{if(e.mods.isCtrlDown()||e.mods.isCommandDown())window.zoom(std::pow(2.,-wheel.deltaY*2),window.first+e.x*window.seconds/getWidth(),extent());else window.pan(window.first-(wheel.deltaX!=0?wheel.deltaX:wheel.deltaY)*window.seconds*.5,extent());syncNavigation();repaint();}
  bool keyPressed(const juce::KeyPress& k)override{if(editable&&(k.getKeyCode()==juce::KeyPress::deleteKey||k.getKeyCode()==juce::KeyPress::backspaceKey)){removeSelection();return true;}return false;}
  void removeSelection(){if(editable&&selectionEnd>selectionStart&&onDelete){onDelete(selectionStart,selectionEnd);selectionEnd=selectionStart;if(onSelection)onSelection();repaint();}}
- void setSelection(juce::int64 a,juce::int64 b){selectionStart=juce::jmax<juce::int64>(0,a);selectionEnd=juce::jmax(selectionStart,b);if(onSelection)onSelection();repaint();}
+ void setSelection(juce::int64 a,juce::int64 b){selectionStart=std::max<juce::int64>(0,a);selectionEnd=juce::jmax(selectionStart,b);if(onSelection)onSelection();repaint();}
  bool hasSelection()const{return selectionEnd>selectionStart;}juce::int64 selectionFrom()const{return selectionStart;}juce::int64 selectionTo()const{return selectionEnd;}
  static juce::String timeText(double sec,bool millis=true){const int whole=(int)sec;return juce::String(whole/60).paddedLeft('0',2)+":"+juce::String(whole%60).paddedLeft('0',2)+(millis?"."+juce::String((int)(sec*1000)%1000).paddedLeft('0',3):juce::String{});}
  TimelineTool zoomIn{TimelineTool::in},zoomOut{TimelineTool::out},fitSong{TimelineTool::fit};

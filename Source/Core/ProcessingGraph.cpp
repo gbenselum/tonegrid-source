@@ -56,7 +56,12 @@ std::unique_ptr<IRenderProcessor> createRenderProcessor(const juce::String& text
     if(custom.result.failed())return fail("A personal pedal capture is missing. Export cancelled: "+custom.result.getErrorMessage());pedals->installCustom(p,std::move(custom.model));
    }pedals->set(p,state.pedals[size_t(p)]);
   }
-  pedals->front.set(state.input);auto* board=pedals.get();auto stages=buildGuitarGraph(out->graph,std::move(pedals),*out->source);if(!stages.connected)return fail("Cannot prepare export processing chain.");
+  pedals->front.set(state.input);
+  pedals->setInstrumentMode(state.instrumentMode);
+  pedals->setRackOrder(state.rackOrder);
+  pedals->setTriComp(state.triComp);
+  pedals->setTriDrive(state.triDrive);
+  auto* board=pedals.get();auto stages=buildGuitarGraph(out->graph,std::move(pedals),*out->source);if(!stages.connected)return fail("Cannot prepare export processing chain.");
   bool useCabinet=false;
   if(state.sourceType==amp::SourceType::Nam) {
    const auto capture=captures::resolveKind(namamp::Library(resources.namLibrary),state.namAmp.model,resources.factoryAmps);

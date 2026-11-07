@@ -1,7 +1,31 @@
 #pragma once
 #include <juce_core/juce_core.h>
-#if JUCE_WEB_BROWSER
 #include <juce_gui_extra/juce_gui_extra.h>
+
+#if !JUCE_WEB_BROWSER
+namespace juce
+{
+class WebBrowserComponent : public Component
+{
+public:
+    class Options
+    {
+    public:
+        enum class Backend { defaultBackend, ie, webview2 };
+        Options withKeepPageLoadedWhenBrowserIsHidden() const noexcept { return *this; }
+        Options withBackend(Backend) const noexcept { return *this; }
+    };
+    explicit WebBrowserComponent(const Options& = {}) {}
+    static bool areOptionsSupported(const Options&) noexcept { return false; }
+    void goToURL(const String&, const StringArray* = nullptr, const MemoryBlock* = nullptr) {}
+    void stop() {}
+    virtual bool pageAboutToLoad(const String&) { return true; }
+    virtual void pageFinishedLoading(const String&) {}
+    virtual void windowCloseRequest() {}
+    virtual void newWindowAttemptingToLoad(const String&) {}
+    virtual bool pageLoadHadNetworkError(const String&) { return false; }
+};
+}
 #endif
 
 namespace tonegrid::platform
@@ -24,14 +48,13 @@ inline juce::String browserUnavailableMessage()
     return "The embedded browser is unavailable. Retry or return to your local NAM library.";
 #endif
 }
-#if JUCE_WEB_BROWSER
-#if JUCE_MAC
+#if JUCE_MAC && JUCE_WEB_BROWSER
 bool loadEncodedBrowserUrl(juce::WebBrowserComponent&, const juce::String&);
 #endif
 // The address is already encoded by the OAuth builder or browser navigation.
 inline bool navigateEncodedBrowserUrl(juce::WebBrowserComponent& browser, const juce::String& address)
 {
-#if JUCE_MAC
+#if JUCE_MAC && JUCE_WEB_BROWSER
     return loadEncodedBrowserUrl(browser,address);
 #else
     browser.goToURL(address);return true;
@@ -41,7 +64,7 @@ inline juce::WebBrowserComponent::Options browserOptions(const juce::File& profi
 {
     using Browser=juce::WebBrowserComponent;
     auto options=Browser::Options{}.withKeepPageLoadedWhenBrowserIsHidden();
-#if JUCE_WINDOWS
+#if JUCE_WINDOWS && JUCE_WEB_BROWSER
     return options.withBackend(Browser::Options::Backend::webview2)
         .withWinWebView2Options(Browser::Options::WinWebView2{}.withUserDataFolder(profile).withStatusBarDisabled().withBuiltInErrorPageDisabled());
 #else
@@ -50,5 +73,4 @@ inline juce::WebBrowserComponent::Options browserOptions(const juce::File& profi
     return options.withBackend(Browser::Options::Backend::defaultBackend);
 #endif
 }
-#endif
 }

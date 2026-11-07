@@ -64,6 +64,7 @@
 #include "FactoryRefinements142Tests.h"
 #include "Release143Tests.h"
 #include "Language144Tests.h"
+#include "BassModeTests.h"
 
 namespace
 {
@@ -245,6 +246,8 @@ bool compatibility(const File& models, const File& fixture, bool record, String&
 int main(int argc,char** argv)
 {
     std::cout.setf(std::ios::unitbuf);
+    if((argc==3||argc==4)&&String(argv[1])=="--bass-mode-test")
+    {ScopedJuceInitialiser_GUI juce;String report;const bool ok=bassModeTests::run(File(String(argv[2])),report);std::cout<<report;return ok?0:1;}
     if(argc==4&&String(argv[1])=="--language144-test")
     {ScopedJuceInitialiser_GUI juce;String report;const bool ok=language144Tests::run(File(String(argv[2])),File(String(argv[3])),report);std::cout<<report;return ok?0:1;}
     if(argc==3&&String(argv[1])=="--release143-test")

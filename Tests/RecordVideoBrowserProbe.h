@@ -17,7 +17,7 @@ private:
  void next(int value){stage=value;stageBegan=juce::Time::getMillisecondCounterHiRes();}
  void feed(){
   using namespace juce;auto& audio=module->recordController().audio();const double now=Time::getMillisecondCounterHiRes();const auto frames=juce::int64(std::floor((now-lastFeed)*48));if(frames<=0)return;lastFeed+=frames/48.;
-  for(juce::int64 at=0;at<frames;at+=512){const int n=int(juce::jmin<juce::int64>(512,frames-at));AudioBuffer<float> raw(1,n),out(2,n);for(int i=0;i<n;++i)raw.setSample(0,i,.01f*std::sin(float(i+at)*.1f));const auto* input=audio.input(raw.getArrayOfReadPointers(),1,n);for(int c=0;c<2;++c)out.copyFrom(c,0,input[0],n);audio.output(out.getArrayOfWritePointers(),2,n);}
+  for(juce::int64 at=0;at<frames;at+=512){const int n=int(std::min<juce::int64>(512,frames-at));AudioBuffer<float> raw(1,n),out(2,n);for(int i=0;i<n;++i)raw.setSample(0,i,.01f*std::sin(float(i+at)*.1f));const auto* input=audio.input(raw.getArrayOfReadPointers(),1,n);for(int c=0;c<2;++c)out.copyFrom(c,0,input[0],n);audio.output(out.getArrayOfWritePointers(),2,n);}
  }
  void timerCallback()override{
   using namespace juce;if(done)return;feed();const double now=Time::getMillisecondCounterHiRes();auto& controller=module->recordController();auto& view=module->recordView();

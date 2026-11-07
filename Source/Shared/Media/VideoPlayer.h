@@ -132,6 +132,10 @@ public:
     void escapeFullscreenForTest(){keyPressed(juce::KeyPress(juce::KeyPress::escapeKey),this);}
     void inspect(std::function<void(juce::var)> callback)
     {if(browser)browser->evaluateJavascript("JSON.stringify({url:location.href,width:innerWidth,height:innerHeight,ready:document.readyState,text:document.body.innerText.substring(0,600),error:window.error||0,videoId:window.player&&player.getVideoData?player.getVideoData().video_id:'',videos:window.player&&player.getCurrentTime?[{paused:player.getPlayerState()!=1,time:player.getCurrentTime()}]:[]})",[callback](juce::WebBrowserComponent::EvaluationResult result){if(auto* value=result.getResult())callback(*value);else callback({});});}
+#else
+    void sendFullscreenEventForTest(bool active){juce::ignoreUnused(active);}
+    void escapeFullscreenForTest(){keyPressed(juce::KeyPress(juce::KeyPress::escapeKey),this);}
+    void inspect(std::function<void(juce::var)> callback){if(callback)callback({});}
 #endif
 private:
     void setFullScreen(bool active)

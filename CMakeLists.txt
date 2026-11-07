@@ -52,20 +52,30 @@ if(WIN32 AND NOT JUCE_WEBVIEW2_PACKAGE_LOCATION)
     set(JUCE_WEBVIEW2_PACKAGE_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/vendor/webview2" CACHE PATH "Parent of the pinned Microsoft.Web.WebView2 SDK" FORCE)
 endif()
 if(WIN32)
-    set(tonegrid_browser_args NEEDS_WEBVIEW2 TRUE)
-    set(tonegrid_platform_definitions JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING=1 JUCE_ASIO=1)
+    set(tonegrid_browser_args NEEDS_WEB_BROWSER TRUE NEEDS_WEBVIEW2 TRUE)
+    set(tonegrid_platform_definitions JUCE_WEB_BROWSER=1 JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING=1 JUCE_ASIO=1)
 elseif(APPLE)
-    set(tonegrid_browser_args MICROPHONE_PERMISSION_ENABLED TRUE
+    set(tonegrid_browser_args NEEDS_WEB_BROWSER TRUE MICROPHONE_PERMISSION_ENABLED TRUE
         MICROPHONE_PERMISSION_TEXT "ToneGrid needs audio input to process and record your guitar."
         PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string></dict></plist>")
-    set(tonegrid_platform_definitions JUCE_ASIO=0)
+    set(tonegrid_platform_definitions JUCE_WEB_BROWSER=1 JUCE_ASIO=0)
 else()
-    # Native ALSA audio, curl HTTPS and JUCE's WebKitGTK browser backend.
-    set(tonegrid_browser_args)
-    set(tonegrid_platform_definitions JUCE_ASIO=0)
+    # Native ALSA audio, curl HTTPS and JUCE's WebKitGTK browser backend when available.
+    if(EXISTS "/usr/include/webkitgtk-4.0/webkit2/webkit2.h" OR EXISTS "/usr/include/webkitgtk-4.1/webkit2/webkit2.h")
+        set(tonegrid_browser_args NEEDS_WEB_BROWSER TRUE)
+        set(tonegrid_web_defs JUCE_WEB_BROWSER=1)
+    else()
+        set(tonegrid_browser_args NEEDS_WEB_BROWSER FALSE)
+        set(tonegrid_web_defs JUCE_WEB_BROWSER=0)
+    endif()
+    if(EXISTS "/usr/include/alsa/asoundlib.h")
+        set(tonegrid_platform_definitions JUCE_ASIO=0 ${tonegrid_web_defs})
+    else()
+        set(tonegrid_platform_definitions JUCE_ASIO=0 JUCE_ALSA=0 ${tonegrid_web_defs})
+    endif()
 endif()
 juce_add_gui_app(ToneGrid VERSION "${PROJECT_VERSION}" PRODUCT_NAME "ToneGrid" COMPANY_NAME "Personal Audio Lab"
-    BUNDLE_ID "com.personalaudiolab.tonexstateprobe" NEEDS_WEB_BROWSER TRUE NEEDS_CURL TRUE ${tonegrid_browser_args})
+    BUNDLE_ID "com.personalaudiolab.tonexstateprobe" NEEDS_CURL TRUE ${tonegrid_browser_args})
 set_target_properties(ToneGrid PROPERTIES OUTPUT_NAME "ToneGrid" RUNTIME_OUTPUT_DIRECTORY_RELEASE
     "${CMAKE_CURRENT_BINARY_DIR}/ToneGrid_artefacts/Release-${PROJECT_VERSION}")
 if(APPLE)
@@ -97,9 +107,17 @@ if(WIN32)
 endif()
 target_compile_options(nam_core PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj> $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 # Spring-only AELAPSE DSP, isolated from all plugin/UI/tape-delay code.
+set(tonegrid_aelapse_include "${CMAKE_CURRENT_SOURCE_DIR}/vendor/aelapse-spring/include")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(tonegrid_aelapse_include "${CMAKE_CURRENT_BINARY_DIR}/aelapse-linux-shim/include")
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/vendor/aelapse-spring/include" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/aelapse-linux-shim")
+    file(READ "${tonegrid_aelapse_include}/dsp/simd/simd_x86_64.h" _aelapse_simd_src)
+    string(REPLACE "static_assert(false, \"wrong duplicate\")" "static_assert(K == 0, \"wrong duplicate\")" _aelapse_simd_patched "${_aelapse_simd_src}")
+    file(WRITE "${tonegrid_aelapse_include}/dsp/simd/simd_x86_64.h" "${_aelapse_simd_patched}")
+endif()
 add_library(tonegrid_spring STATIC Source/Effects/Reverb/SpringReverbProcessor.cpp
     vendor/aelapse-spring/processors/springs/Springs.cpp)
-target_include_directories(tonegrid_spring PRIVATE vendor/aelapse-spring/include
+target_include_directories(tonegrid_spring PRIVATE "${tonegrid_aelapse_include}"
     vendor/aelapse-spring/gcem/include)
 target_compile_features(tonegrid_spring PRIVATE cxx_std_20)
 # No AVX dispatch, OpenMP or fast-math changes to existing ToneGrid DSP.
@@ -184,7 +202,7 @@ endif()
 target_compile_features(ToneGrid PRIVATE cxx_std_20)
 target_compile_definitions(ToneGrid PRIVATE
     JUCE_PLUGINHOST_VST3=1 JUCE_PLUGINHOST_VST=0
-    JUCE_WEB_BROWSER=1 JUCE_USE_CURL=$<BOOL:$<PLATFORM_ID:Linux>> ${tonegrid_platform_definitions}
+    JUCE_USE_CURL=$<BOOL:$<PLATFORM_ID:Linux>> ${tonegrid_platform_definitions}
     JUCE_APPLICATION_NAME_STRING="ToneGrid"
     JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}"
     TONEGRID_VERSION_NUMERIC="${PROJECT_VERSION}")
@@ -210,7 +228,7 @@ if(BUILD_TESTING)
         JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}"
     TONEGRID_VERSION_NUMERIC="${PROJECT_VERSION}"
         JUCE_PLUGINHOST_VST3=1 JUCE_PLUGINHOST_VST=0
-        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=$<BOOL:$<PLATFORM_ID:Linux>> JUCE_ASIO=$<BOOL:${WIN32}>)
+        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=$<BOOL:$<PLATFORM_ID:Linux>> ${tonegrid_platform_definitions})
     target_link_libraries(ToneGridOfflineTests PRIVATE tonegrid_spring tonegrid_effects ToneGridBranding ToneGridApplicationAssets)
     if(WIN32)
         target_link_libraries(ToneGridOfflineTests PRIVATE bcrypt)
@@ -220,6 +238,8 @@ if(BUILD_TESTING)
         juce::juce_audio_utils juce::juce_cryptography juce::juce_dsp
         juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
     set(tonegrid_test_models "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Models")
+    add_test(NAME ToneGrid.BassMode COMMAND ToneGridOfflineTests --bass-mode-test "${tonegrid_test_models}")
+    set_tests_properties(ToneGrid.BassMode PROPERTIES LABELS "offline;bass;dsp;ui" TIMEOUT 120)
     add_test(NAME ToneGrid.Regression140 COMMAND ToneGridOfflineTests --regression140-test)
     set_tests_properties(ToneGrid.Regression140 PROPERTIES LABELS "offline;ui;keyboard;hover" RUN_SERIAL TRUE TIMEOUT 60)
     add_test(NAME ToneGrid.LibraryEscape COMMAND ToneGridOfflineTests --library-escape-test)
@@ -449,7 +469,7 @@ target_include_directories(tonegrid_spring PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/
 add_library(tonegrid_record STATIC Source/Modules/Record/RecordModule.cpp Source/Modules/Record/RecordController.cpp)
 target_include_directories(tonegrid_record PRIVATE Source "${JUCE_DIR}/modules" "${NAM_ROOT}/Dependencies/nlohmann")
 target_compile_features(tonegrid_record PUBLIC cxx_std_20)
-target_compile_definitions(tonegrid_record PRIVATE JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1 JUCE_STANDALONE_APPLICATION=1 JUCE_WEB_BROWSER=1 JUCE_USE_CURL=0 JUCE_USE_MP3AUDIOFORMAT=1 NOMINMAX WIN32_LEAN_AND_MEAN ${tonegrid_platform_definitions})
+target_compile_definitions(tonegrid_record PRIVATE JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1 JUCE_STANDALONE_APPLICATION=1 JUCE_USE_CURL=0 JUCE_USE_MP3AUDIOFORMAT=1 NOMINMAX WIN32_LEAN_AND_MEAN ${tonegrid_platform_definitions})
 target_compile_options(tonegrid_record PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj> $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 target_link_libraries(tonegrid_record PUBLIC tonegrid_core PRIVATE PedalArtwork ToneGridBranding ToneGridApplicationAssets)
 foreach(module Play Jam Learn)
@@ -459,7 +479,7 @@ foreach(module Play Jam Learn)
         "${NAM_ROOT}" "${NAM_ROOT}/Dependencies/nlohmann" "${CMAKE_CURRENT_SOURCE_DIR}/vendor/eigen-3.4.0")
     target_compile_features(tonegrid_${tab} PUBLIC cxx_std_20)
     target_compile_definitions(tonegrid_${tab} PRIVATE JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
-        JUCE_STANDALONE_APPLICATION=1 JUCE_WEB_BROWSER=1 JUCE_USE_CURL=$<BOOL:$<PLATFORM_ID:Linux>>
+        JUCE_STANDALONE_APPLICATION=1 JUCE_USE_CURL=$<BOOL:$<PLATFORM_ID:Linux>>
         JUCE_PLUGINHOST_VST3=1 JUCE_USE_MP3AUDIOFORMAT=1 NAM_SAMPLE_FLOAT NAM_ENABLE_A2_FAST
         NOMINMAX WIN32_LEAN_AND_MEAN ${tonegrid_platform_definitions})
     target_compile_options(tonegrid_${tab} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj> $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
